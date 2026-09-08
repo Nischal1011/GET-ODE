@@ -74,10 +74,10 @@ def generate_dataset(args,num_sims,isTrain = True):
         timestamps.append(T_samples)  # [99]
 
 
-    loc_all = np.asarray(loc_all)  # [5000,5 list(timestamps,2)]
-    vel_all = np.asarray(vel_all)
+    loc_all = np.asarray(loc_all, dtype=object)  # [5000,5 list(timestamps,2)]
+    vel_all = np.asarray(vel_all, dtype=object)
     edges = np.stack(edges)
-    timestamps = np.asarray(timestamps)
+    timestamps = np.asarray(timestamps, dtype=object)
 
     return loc_all, vel_all, edges, timestamps
 
@@ -106,10 +106,10 @@ def generate_dataset_charged(args,num_sims,isTrain = True):
         timestamps.append(T_samples)  # [99]
 
 
-    loc_all = np.asarray(loc_all)  # [5000,5 list(timestamps,2)]
-    vel_all = np.asarray(vel_all)
+    loc_all = np.asarray(loc_all, dtype=object)  # [5000,5 list(timestamps,2)]
+    vel_all = np.asarray(vel_all, dtype=object)
     edges = np.stack(edges)
-    timestamps = np.asarray(timestamps)
+    timestamps = np.asarray(timestamps, dtype=object)
 
     return loc_all, vel_all, edges, timestamps
 

@@ -46,6 +46,7 @@ parser.add_argument('--cutting_edge', type=bool, default=True, help='True/False'
 parser.add_argument('--extrap_num', type=int, default=40, help='extrap num ')
 parser.add_argument('--rec_attention', type=str, default="attention")
 parser.add_argument('--alias', type=str, default="run")
+parser.add_argument('--dataset-dir', type=str, default=None, help='Override dataset directory (defaults to data/example_data for spring)')
 
 
 
@@ -68,6 +69,8 @@ elif args.data == "motion":
     args.total_ode_step=49
     args.n_balls = 31
 
+if args.dataset_dir is not None:
+    args.dataset = args.dataset_dir
 
 
 ############ CPU AND GPU related, Mode related, Dataset Related

@@ -39,10 +39,10 @@ class ParseData(object):
 
 
         # Loading Data
-        loc = np.load(self.dataset_path + '/loc_' + data_type + self.suffix + '.npy')[:cut_num]
-        vel = np.load(self.dataset_path + '/vel_' + data_type + self.suffix + '.npy')[:cut_num]
-        edges = np.load(self.dataset_path + '/edges_' + data_type + self.suffix + '.npy')[:cut_num]  # [500,5,5]
-        times = np.load(self.dataset_path + '/times_' + data_type + self.suffix + '.npy')[:cut_num]  # 【500，5]
+        loc = np.load(self.dataset_path + '/loc_' + data_type + self.suffix + '.npy', allow_pickle=True)[:cut_num]
+        vel = np.load(self.dataset_path + '/vel_' + data_type + self.suffix + '.npy', allow_pickle=True)[:cut_num]
+        edges = np.load(self.dataset_path + '/edges_' + data_type + self.suffix + '.npy', allow_pickle=True)[:cut_num]  # [500,5,5]
+        times = np.load(self.dataset_path + '/times_' + data_type + self.suffix + '.npy', allow_pickle=True)[:cut_num]  # 【500，5]
 
         self.num_graph = loc.shape[0]
         self.num_atoms = loc.shape[1]

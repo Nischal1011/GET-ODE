@@ -1,0 +1,12 @@
+.venv/
+*.pdf
+__pycache__/
+*.pyc
+experiments/
+logs/
+plot/
+data/*.npy
+!data/example_data/*.npy
+data/spring/
+data/charged/
+data/motion/
