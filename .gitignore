@@ -3,7 +3,9 @@
 __pycache__/
 *.pyc
 experiments/
+experiments_at/
 logs/
+run_logs/*_driver.log
 plot/
 data/*.npy
 !data/example_data/*.npy

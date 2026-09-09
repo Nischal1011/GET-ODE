@@ -63,7 +63,9 @@ class VAE_Baseline(nn.Module):
 
 		#print("get_reconstruction done -- computing likelihood")
 		fp_mu, fp_std, fp_enc = info["first_point"]
-		fp_std = fp_std.abs()
+		# abs() alone can still reach exactly/near 0 under training instability, which violates
+		# Normal's strictly-positive scale constraint and crashes training. Floor it instead.
+		fp_std = fp_std.abs().clamp(min=1e-6)
 		fp_distr = Normal(fp_mu, fp_std)
 
 
