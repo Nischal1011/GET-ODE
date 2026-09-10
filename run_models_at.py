@@ -55,6 +55,7 @@ parser.add_argument('--alias', type=str, default="run")
 parser.add_argument('--dataset-dir', type=str, default=None, help='Override dataset directory (defaults to data/example_data for spring)')
 parser.add_argument('--lambda-init', type=float, default=5.0, help='Initial value of the transport decay rate lambda in K(dt)=exp(-lambda*dt)')
 parser.add_argument('--learnable-lambda', type=lambda s: s.lower() != 'false', default=True, help='Whether lambda is a learnable parameter (True/False)')
+parser.add_argument('--nonadj-floor', type=float, default=0.0, help='Baseline transport weight for non-adjacent (A_ij=0) pairs, instead of hard-zeroing them. 0 recovers the original hard-masked behavior.')
 
 
 args = parser.parse_args()

@@ -139,7 +139,7 @@ matching plain LG-ODE.
 | `lib/at_diffeq_solver.py` | `ATDiffeqSolver`, `ATGraphODEFunc` — threads `t_local` to the ODE net |
 | `lib/at_latent_ode.py` | `ATLatentGraphODE(VAE_Baseline)` — builds the transport cache after the encoder runs |
 | `lib/create_at_latent_ode_model.py` | `create_AT_LatentODE_model` — assembles the pieces above |
-| `run_models_at.py` | Top-level training script, mirrors `run_models.py` exactly (same flags/behavior/logging), plus `--lambda-init` / `--learnable-lambda` |
+| `run_models_at.py` | Top-level training script, mirrors `run_models.py` exactly (same flags/behavior/logging), plus `--lambda-init` / `--learnable-lambda` / `--nonadj-floor` |
 
 ### How to run it
 
@@ -151,35 +151,53 @@ python run_models_at.py --dataset-dir data/spring --extrap True --alias at_sprin
 
 ## Part 5 — AT-LG-ODE vs. LG-ODE results
 
-See **`RESULTS.md`** for the standalone results summary. Springs, 60% observed, 30-epoch budget (chosen because the original LG-ODE's best result
-already emerges by epoch ~10-17 in every run so far):
+See **`RESULTS.md`** for the full results summary and the exact commands used (springs and
+charged particles, interpolation and extrapolation). Short version: on springs, AT-LG-ODE ties
+LG-ODE on interpolation (converging in about half the epochs) and beats it by ~25% on
+extrapolation while training stably where the baseline destabilizes. On charged particles, the
+same design *underperforms* LG-ODE on both tasks — see Part 6 for why, and for a partial fix.
 
-Both models ran the full 30-epoch budget without crashing (Part 3's patch worked for both):
+## Part 6 — Charged particles: a hard-mask failure mode, and a fix
 
-| Task | LG-ODE (patched) | AT-LG-ODE (patched) | Source logs |
-|---|---|---|---|
-| Interpolation | 0.3406 ×10⁻² (epoch 26/30) | 0.3459 ×10⁻² (epoch 13/30) | `run_logs/springs_interp_60_patched.log`, `run_logs/at_springs_interp_60_patched.log` |
-| Extrapolation | 1.6418 ×10⁻² (epoch 10/30, unstable after) | **1.2374 ×10⁻² (epoch 29/30, stable)** | `run_logs/springs_extrap_60.log`, `run_logs/at_springs_extrap_60.log` |
+Repeating the springs comparison on the **charged particles** dataset (same pipeline: 20k/5k
+full-scale data via `data/generate_dataset.py --simulation charged`, 60% observed, 30 epochs,
+patched `base_models.py`) reverses the result: **LG-ODE beats AT-LG-ODE on both interpolation
+and extrapolation** (see `RESULTS.md` for numbers). Both LG-ODE reproductions track the paper's
+Table 1/2 closely, so the baseline is trustworthy — this is a genuine weakness in AT-LG-ODE as
+originally specified, not a bug.
 
-**Interpolation: essentially a tie** (0.3406 vs. 0.3459, ~1.5% apart, within reproduction
-noise), but AT-LG-ODE reaches its best result at epoch 13 vs. LG-ODE's epoch 26 — noticeably
-faster convergence for the same final quality.
+**Root cause**: `w_ij(t) = A_ij·r_ij(t) / (Σ_k A_ik·r_ik(t) + ε)` uses the physical adjacency
+`A_ij` as a hard 0/1 mask. Any pair with no sampled edge gets `w_ij(t) = 0` unconditionally, so
+its relation message is silenced completely, at every timestep, for the entire trajectory. The
+original NRI ODE function (Appendix C.1) never does this — it always sums a second MLP for
+"not-connected" pairs alongside the connected one, precisely so latent/unlabeled interactions
+can still contribute. For springs this pathway is genuinely unnecessary (non-adjacent objects
+exert zero force, so silencing it is free); for charged particles every pair attracts or repels
+regardless of the sampled edge label, so AT-LG-ODE was discarding real signal for every
+non-adjacent pair.
 
-**Extrapolation: a clear win for AT-LG-ODE** — ~25% lower MSE than the LG-ODE baseline, and it
-trained stably through all 30 epochs with monotonically improving MSE, while the LG-ODE
-baseline destabilized after epoch 10 and never recovered.
+**Fix**: `AttentionTransport` gained a `nonadj_floor` parameter (`--nonadj-floor`,
+`lib/attention_transport.py`). Instead of `Ar = A_ij·r_ij(t)`, it's now
+`Ar = A_ij·r_ij(t) + nonadj_floor`, applied to *every* pair before normalizing — so a
+non-adjacent pair gets a small non-zero share instead of exactly 0, while an adjacent pair with
+real transported evidence still dominates (`evidence + floor >> floor` whenever there's
+meaningful evidence). `nonadj_floor=0` (the default, used for every springs/charged result
+above) is mathematically identical to the original hard mask — confirmed by rerunning the
+smoke tests after the change and seeing identical behavior.
 
-**Takeaway**: transporting the encoder's relational attention forward in time doesn't cost
-anything on interpolation (where the ODE only has to fill in gaps within an already-observed
-window) but meaningfully helps — both in accuracy and in training stability — on extrapolation,
-where the model has to forecast dynamics beyond any further correction from observations. That
-is consistent with the design's motivating hypothesis: preserving the encoder's relational
-evidence particularly matters when the ODE has to carry it forward unsupervised.
+**Outcome** (see `RESULTS.md` for full numbers): `nonadj_floor=0.3` closes about 75% of the
+interpolation gap to LG-ODE (0.8739 → 0.8291 ×10⁻², vs. LG-ODE's 0.8033), supporting the
+hypothesis above. It does **not** help extrapolation (6.2311 → 6.3105 ×10⁻², essentially flat
+or slightly worse). So the hard-mask silencing explains a real, meaningful part of the
+interpolation gap but not the extrapolation gap — something else is also costing AT-LG-ODE on
+charged extrapolation, left as an open question here.
 
 ## Where to look
 
-- **Reproduction command / log**: `run_models.py`, `run_logs/springs_interp_60*.log`,
-  `run_logs/springs_extrap_60.log`
-- **AT-LG-ODE command / log**: `run_models_at.py`, `run_logs/at_springs_*.log`
+- **Reproduction command / log**: `run_models.py`, `run_logs/springs_*.log`,
+  `run_logs/charged_*.log`
+- **AT-LG-ODE command / log**: `run_models_at.py`, `run_logs/at_springs_*.log`,
+  `run_logs/at_charged_*.log`
 - **Checkpoints**: `experiments/` (LG-ODE), `experiments_at/` (AT-LG-ODE) — both gitignored
-- **Full spring dataset**: `data/spring/` (gitignored, regenerate via Part 2's command)
+- **Full datasets**: `data/spring/`, `data/charged/` (gitignored, regenerate via Part 2's
+  command with `--simulation springs` or `--simulation charged`)

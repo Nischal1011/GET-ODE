@@ -21,10 +21,19 @@ import torch.nn as nn
 
 class AttentionTransport(nn.Module):
 
-    def __init__(self, num_atoms, lam_init=5.0, eps=1e-6, learnable_lambda=True):
+    def __init__(self, num_atoms, lam_init=5.0, eps=1e-6, learnable_lambda=True, nonadj_floor=0.0):
         super(AttentionTransport, self).__init__()
         self.num_atoms = num_atoms
         self.eps = eps
+        # Baseline weight given to every pair regardless of the physical adjacency A_ij. With
+        # the default of 0, a non-adjacent pair (A_ij=0) always gets w_ij(t)=0, i.e. its
+        # relation message is silenced completely at every timestep -- fine for datasets where
+        # non-adjacent objects truly don't interact (springs), but wrong for datasets where
+        # every pair interacts regardless of the sampled edge label (charged particles' Coulomb
+        # forces). A small positive floor keeps that pathway alive: adjacent pairs with real
+        # transported evidence still dominate (evidence + floor >> floor), while non-adjacent
+        # pairs get a small non-zero share instead of being hard-zeroed.
+        self.nonadj_floor = nonadj_floor
 
         log_lam_init = torch.log(torch.tensor(float(lam_init)))
         if learnable_lambda:
@@ -104,7 +113,7 @@ class AttentionTransport(nn.Module):
         device = self._adjacency.device
 
         if not self.has_cache():
-            w = torch.zeros(B, N * (N - 1), device=device)
+            r_offdiag = torch.zeros(B, N * (N - 1), device=device)
         else:
             c = self._cache
             t_query = t_query.reshape(())
@@ -120,10 +129,11 @@ class AttentionTransport(nn.Module):
 
             r_offdiag = r[:, self.pair_i, self.pair_j]  # [B, N*(N-1)]
 
-            Ar = self._adjacency * r_offdiag
-            Ar_grid = Ar.view(B, N, N - 1)
-            denom = Ar_grid.sum(dim=2, keepdim=True) + self.eps
-            w = (Ar_grid / denom).view(B, N * (N - 1))
+        # nonadj_floor=0 recovers the original hard mask exactly (A_ij=0 -> w_ij=0 always).
+        Ar = self._adjacency * r_offdiag + self.nonadj_floor
+        Ar_grid = Ar.view(B, N, N - 1)
+        denom = Ar_grid.sum(dim=2, keepdim=True) + self.eps
+        w = (Ar_grid / denom).view(B, N * (N - 1))
 
         if self._n_traj_samples > 1:
             w = w.repeat(self._n_traj_samples, 1)

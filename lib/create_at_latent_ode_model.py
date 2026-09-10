@@ -22,7 +22,8 @@ def create_AT_LatentODE_model(args, input_dim, z0_prior, obsrv_std, device):
         ode_input_dim = latent_dim
 
     transport = AttentionTransport(num_atoms=args.n_balls, lam_init=args.lambda_init,
-                                    learnable_lambda=args.learnable_lambda).to(device)
+                                    learnable_lambda=args.learnable_lambda,
+                                    nonadj_floor=args.nonadj_floor).to(device)
 
     ode_func_net = ATOdeGNN(in_dim=ode_input_dim, n_hid=ode_dim, out_dim=ode_input_dim,
                              n_layers=args.gen_layers, dropout=args.dropout, transport=transport).to(device)
