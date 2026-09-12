@@ -14,6 +14,21 @@ The module is stateful across one forward/solve call: `build_cache` is called on
 after the encoder runs (attention doesn't depend on which trajectory sample or ODE time we're
 at), `set_adjacency` is called once before the ODE solve starts, and `compute_weights(t)` is
 then called by the ODE function at every solver evaluation.
+
+`ablation` controls four variants used to isolate what's actually driving AT-LG-ODE's gain over
+plain LG-ODE (see CHANGES.md's ablation section):
+  - 'none'     : the full mechanism above (real attention, real ages).
+  - 'hardmask' : w_ij(t) = A_ij, constant over time -- no transport at all, just a static
+                 graph-support mask. Tests whether pruning non-adjacent messages, on its own,
+                 explains the gain.
+  - 'constant' : real ages, but alpha replaced by a constant -- keeps the decay kernel and
+                 normalization structure (and its extra parameters) live, but with no actual
+                 data-dependent attention content. Tests implementation/parameter effects.
+  - 'shuffled' : real alpha, but each pair's age t_s is randomly reassigned among the other
+                 ages observed for the *same* physical sample (so the marginal distribution of
+                 ages and of attention values is unchanged, only their pairing is). Tests
+                 whether the correct temporal correspondence matters, versus any decay-shaped
+                 reweighting.
 '''
 import torch
 import torch.nn as nn
@@ -21,8 +36,11 @@ import torch.nn as nn
 
 class AttentionTransport(nn.Module):
 
-    def __init__(self, num_atoms, lam_init=5.0, eps=1e-6, learnable_lambda=True, nonadj_floor=0.0):
+    def __init__(self, num_atoms, lam_init=5.0, eps=1e-6, learnable_lambda=True, nonadj_floor=0.0,
+                 ablation='none'):
         super(AttentionTransport, self).__init__()
+        assert ablation in ('none', 'hardmask', 'constant', 'shuffled')
+        self.ablation = ablation
         self.num_atoms = num_atoms
         self.eps = eps
         # Baseline weight given to every pair regardless of the physical adjacency A_ij. With
@@ -77,6 +95,10 @@ class AttentionTransport(nn.Module):
 
         inter_object = obj_i != obj_j
 
+        alpha = attention[inter_object].detach()
+        if self.ablation == 'constant':
+            alpha = torch.ones_like(alpha)
+
         # Detached on purpose: gradients into the encoder's relational attention already flow
         # through the normal z0 (attention-pooling) path used by Stage 4, unchanged from
         # LG-ODE. Keeping this cache out of the graph lets the ODE solve use the memory-
@@ -87,8 +109,37 @@ class AttentionTransport(nn.Module):
             'i': obj_i[inter_object],
             'j': obj_j[inter_object],
             'ts': t_s[sender][inter_object].detach(),
-            'alpha': attention[inter_object].detach(),
+            'alpha': alpha,
         }
+
+        if self.ablation == 'shuffled':
+            self._shuffle_ages_within_sample()
+
+    def _shuffle_ages_within_sample(self):
+        '''
+        Randomly permutes 'ts' among cache entries that belong to the same batch sample
+        ('graph'), leaving 'graph'/'i'/'j'/'alpha' untouched. Done once per encoder forward
+        (i.e. once per batch), like the real cache -- not re-shuffled per ODE solver step.
+        '''
+        c = self._cache
+        graph_id = c['graph']
+        ts = c['ts']
+
+        order = torch.argsort(graph_id, stable=True)
+        sorted_graph = graph_id[order]
+        sorted_ts = ts[order].clone()
+
+        _, counts = torch.unique_consecutive(sorted_graph, return_counts=True)
+        start = 0
+        for cnt in counts.tolist():
+            if cnt > 1:
+                perm = torch.randperm(cnt, device=ts.device)
+                sorted_ts[start:start + cnt] = sorted_ts[start:start + cnt][perm]
+            start += cnt
+
+        new_ts = torch.empty_like(ts)
+        new_ts[order] = sorted_ts
+        c['ts'] = new_ts
 
     def has_cache(self):
         return self._cache is not None and self._cache['alpha'].numel() > 0
@@ -111,6 +162,14 @@ class AttentionTransport(nn.Module):
         B = self._adjacency.size(0)
         N = self.num_atoms
         device = self._adjacency.device
+
+        if self.ablation == 'hardmask':
+            # Constant, time-invariant graph-support mask: w_ij = A_ij. No cache, no decay, no
+            # normalization -- literally the "all weights=1" condition.
+            w = self._adjacency
+            if self._n_traj_samples > 1:
+                w = w.repeat(self._n_traj_samples, 1)
+            return w
 
         if not self.has_cache():
             r_offdiag = torch.zeros(B, N * (N - 1), device=device)

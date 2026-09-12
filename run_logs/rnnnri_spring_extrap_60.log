@@ -1,0 +1,282 @@
+Using GPU--------------------------------------------------------------------------------
+Running extrap mode--------------------------------------------------------------------------------
+Loading dataset: data/example_data
+number graph in   train   is 1800
+number atoms in   train   is 5
+  0%|          | 0/1800 [00:00<?, ?it/s] 11%|█         | 201/1800 [00:00<00:00, 2007.67it/s] 23%|██▎       | 410/1800 [00:00<00:00, 2050.40it/s] 34%|███▍      | 616/1800 [00:00<00:00, 1548.54it/s] 45%|████▌     | 817/1800 [00:00<00:00, 1698.86it/s] 57%|█████▋    | 1023/1800 [00:00<00:00, 1812.95it/s] 69%|██████▉   | 1238/1800 [00:00<00:00, 1918.04it/s] 80%|████████  | 1449/1800 [00:00<00:00, 1977.21it/s] 92%|█████████▏| 1660/1800 [00:00<00:00, 2017.18it/s]100%|██████████| 1800/1800 [00:00<00:00, 1912.60it/s]
+/mnt/c/Users/nsubedi/Documents/LG-ODE/lib/new_dataLoader.py:297: UserWarning: 'data.DataLoader' is deprecated, use 'loader.DataLoader' instead
+  data_loader = DataLoader(data_list, batch_size=self.batch_size)
+/mnt/c/Users/nsubedi/Documents/LG-ODE/lib/new_dataLoader.py:298: UserWarning: 'data.DataLoader' is deprecated, use 'loader.DataLoader' instead
+  graph_loader = DataLoader(graph_list, batch_size=self.batch_size)
+average number of edges per graph is 1309.4094
+number graph in   val   is 200
+number atoms in   val   is 5
+  0%|          | 0/200 [00:00<?, ?it/s]100%|██████████| 200/200 [00:00<00:00, 2096.23it/s]
+average number of edges per graph is 1335.9200
+number graph in   test   is 500
+number atoms in   test   is 5
+  0%|          | 0/500 [00:00<?, ?it/s]  7%|▋         | 37/500 [00:00<00:01, 319.94it/s] 25%|██▍       | 123/500 [00:00<00:00, 614.66it/s] 42%|████▏     | 208/500 [00:00<00:00, 717.80it/s] 60%|█████▉    | 299/500 [00:00<00:00, 789.92it/s] 78%|███████▊  | 389/500 [00:00<00:00, 828.25it/s] 96%|█████████▌| 479/500 [00:00<00:00, 849.89it/s]100%|██████████| 500/500 [00:00<00:00, 777.86it/s]
+/mnt/c/Users/nsubedi/Documents/LG-ODE/run_models_rnnnri.py
+run_models_rnnnri.py --data spring --extrap True --niters 30 --alias rnnnri_spring_extrap_60
+Namespace(n_balls=5, niters=30, lr=0.0005, batch_size=256, save='experiments_rnnnri/', edge_types=2, load=None, random_seed=1991, data='spring', latents=16, hidden_dim=64, extrap='True', sample_percent_train=0.6, sample_percent_test=0.6, l2=0.001, optimizer='AdamW', clip=10, cutting_edge=True, extrap_num=40, alias='rnnnri_spring_extrap_60', dataset_dir=None, dataset='data/example_data', suffix='_springs5', total_ode_step=60, mode='extrap')
+rnnnri_spring_extrap_60
+average number of edges per graph is 4577.5120
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:01<00:09,  1.29s/it] 25%|██▌       | 2/8 [00:01<00:03,  1.60it/s] 38%|███▊      | 3/8 [00:01<00:01,  2.57it/s] 50%|█████     | 4/8 [00:01<00:01,  3.51it/s] 62%|██████▎   | 5/8 [00:01<00:00,  4.27it/s] 75%|███████▌  | 6/8 [00:01<00:00,  4.93it/s] 88%|████████▊ | 7/8 [00:02<00:00,  5.81it/s]100%|██████████| 8/8 [00:02<00:00,  3.76it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  8.05it/s]100%|██████████| 2/2 [00:00<00:00,  9.60it/s]
+Experiment 77674
+Epoch 0001 [Train seq (cond on sampled tp)] | Loss 20267.541740 | MSE 4.053508 | Likelihood -20267.541740 | KL fp 0.0004 | FP STD 0.0000|
+Epoch 0001 [Test seq (cond on sampled tp)] | Loss 197283.140625 | MSE 39.456625 | Likelihood -197283.140625 | KL fp 0.0017 | FP STD 0.0000|
+KL coef: 0.0
+Epoch 0001 [Test seq (cond on sampled tp)] | Best mse 39.456625|
+data: spring, model: RNN-NRI, sample: 0.6, mode:extrap
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:00,  9.32it/s] 25%|██▌       | 2/8 [00:00<00:00,  8.81it/s] 38%|███▊      | 3/8 [00:00<00:00,  8.11it/s] 50%|█████     | 4/8 [00:00<00:00,  6.62it/s] 62%|██████▎   | 5/8 [00:00<00:00,  6.81it/s] 75%|███████▌  | 6/8 [00:00<00:00,  7.33it/s] 88%|████████▊ | 7/8 [00:00<00:00,  7.60it/s]100%|██████████| 8/8 [00:00<00:00,  8.22it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  9.55it/s]100%|██████████| 2/2 [00:00<00:00, 10.12it/s]
+Experiment 77674
+Epoch 0002 [Train seq (cond on sampled tp)] | Loss 590.629269 | MSE 0.118126 | Likelihood -590.629269 | KL fp 0.0039 | FP STD 0.0000|
+Epoch 0002 [Test seq (cond on sampled tp)] | Loss 25465.418945 | MSE 5.093084 | Likelihood -25465.418945 | KL fp 0.0074 | FP STD 0.0000|
+KL coef: 0.0
+Epoch 0002 [Test seq (cond on sampled tp)] | Best mse 5.093084|
+data: spring, model: RNN-NRI, sample: 0.6, mode:extrap
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:00,  7.96it/s] 25%|██▌       | 2/8 [00:00<00:00,  8.38it/s] 38%|███▊      | 3/8 [00:00<00:00,  7.76it/s] 50%|█████     | 4/8 [00:00<00:00,  7.96it/s] 62%|██████▎   | 5/8 [00:00<00:00,  8.27it/s] 75%|███████▌  | 6/8 [00:00<00:00,  8.24it/s]100%|██████████| 8/8 [00:00<00:00, 10.03it/s]100%|██████████| 8/8 [00:00<00:00,  8.97it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s]100%|██████████| 2/2 [00:00<00:00, 14.04it/s]100%|██████████| 2/2 [00:00<00:00, 13.97it/s]
+Experiment 77674
+Epoch 0003 [Train seq (cond on sampled tp)] | Loss 383.806412 | MSE 0.076761 | Likelihood -383.806412 | KL fp 0.0072 | FP STD 0.0000|
+Epoch 0003 [Test seq (cond on sampled tp)] | Loss 3881.523193 | MSE 0.776305 | Likelihood -3881.523193 | KL fp 0.0057 | FP STD 0.0000|
+KL coef: 0.0
+Epoch 0003 [Test seq (cond on sampled tp)] | Best mse 0.776305|
+data: spring, model: RNN-NRI, sample: 0.6, mode:extrap
+  0%|          | 0/8 [00:00<?, ?it/s] 25%|██▌       | 2/8 [00:00<00:00,  9.01it/s] 38%|███▊      | 3/8 [00:00<00:00,  7.90it/s] 50%|█████     | 4/8 [00:00<00:00,  8.37it/s] 62%|██████▎   | 5/8 [00:00<00:00,  8.49it/s] 75%|███████▌  | 6/8 [00:00<00:00,  8.62it/s] 88%|████████▊ | 7/8 [00:00<00:00,  8.76it/s]100%|██████████| 8/8 [00:00<00:00,  9.12it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s]100%|██████████| 2/2 [00:00<00:00, 12.52it/s]100%|██████████| 2/2 [00:00<00:00, 12.36it/s]
+Experiment 77674
+Epoch 0004 [Train seq (cond on sampled tp)] | Loss 357.149246 | MSE 0.071430 | Likelihood -357.149246 | KL fp 0.0035 | FP STD 0.0000|
+Epoch 0004 [Test seq (cond on sampled tp)] | Loss 6747.517822 | MSE 1.349503 | Likelihood -6747.517822 | KL fp 0.0024 | FP STD 0.0000|
+KL coef: 0.0
+data: spring, model: RNN-NRI, sample: 0.6, mode:extrap
+  0%|          | 0/8 [00:00<?, ?it/s] 25%|██▌       | 2/8 [00:00<00:00,  8.68it/s] 38%|███▊      | 3/8 [00:00<00:00,  9.01it/s] 50%|█████     | 4/8 [00:00<00:00,  8.88it/s] 62%|██████▎   | 5/8 [00:00<00:00,  8.94it/s] 75%|███████▌  | 6/8 [00:00<00:00,  8.99it/s] 88%|████████▊ | 7/8 [00:00<00:00,  9.04it/s]100%|██████████| 8/8 [00:00<00:00,  9.59it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s]100%|██████████| 2/2 [00:00<00:00, 11.70it/s]100%|██████████| 2/2 [00:00<00:00, 11.65it/s]
+Experiment 77674
+Epoch 0005 [Train seq (cond on sampled tp)] | Loss 344.612511 | MSE 0.068923 | Likelihood -344.612511 | KL fp 0.0020 | FP STD 0.0000|
+Epoch 0005 [Test seq (cond on sampled tp)] | Loss 4419.168945 | MSE 0.883834 | Likelihood -4419.168945 | KL fp 0.0022 | FP STD 0.0000|
+KL coef: 0.0
+data: spring, model: RNN-NRI, sample: 0.6, mode:extrap
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:00,  8.84it/s] 25%|██▌       | 2/8 [00:00<00:00,  7.47it/s] 38%|███▊      | 3/8 [00:00<00:00,  7.44it/s] 50%|█████     | 4/8 [00:00<00:00,  8.02it/s] 62%|██████▎   | 5/8 [00:00<00:00,  8.21it/s] 75%|███████▌  | 6/8 [00:00<00:00,  8.12it/s] 88%|████████▊ | 7/8 [00:00<00:00,  8.01it/s]100%|██████████| 8/8 [00:00<00:00,  8.50it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s]100%|██████████| 2/2 [00:00<00:00, 12.63it/s]100%|██████████| 2/2 [00:00<00:00, 12.57it/s]
+Experiment 77674
+Epoch 0006 [Train seq (cond on sampled tp)] | Loss 344.157757 | MSE 0.068832 | Likelihood -344.157757 | KL fp 0.0021 | FP STD 0.0000|
+Epoch 0006 [Test seq (cond on sampled tp)] | Loss 1876.524780 | MSE 0.375305 | Likelihood -1876.524780 | KL fp 0.0022 | FP STD 0.0000|
+KL coef: 0.0
+Epoch 0006 [Test seq (cond on sampled tp)] | Best mse 0.375305|
+data: spring, model: RNN-NRI, sample: 0.6, mode:extrap
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:00,  9.00it/s] 25%|██▌       | 2/8 [00:00<00:00,  7.88it/s] 38%|███▊      | 3/8 [00:00<00:00,  7.56it/s] 50%|█████     | 4/8 [00:00<00:00,  7.38it/s] 62%|██████▎   | 5/8 [00:00<00:00,  7.36it/s] 75%|███████▌  | 6/8 [00:00<00:00,  7.30it/s] 88%|████████▊ | 7/8 [00:00<00:00,  7.14it/s]100%|██████████| 8/8 [00:00<00:00,  8.02it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  9.92it/s]100%|██████████| 2/2 [00:00<00:00,  9.77it/s]100%|██████████| 2/2 [00:00<00:00,  9.76it/s]
+Experiment 77674
+Epoch 0007 [Train seq (cond on sampled tp)] | Loss 339.420856 | MSE 0.067884 | Likelihood -339.420856 | KL fp 0.0025 | FP STD 0.0000|
+Epoch 0007 [Test seq (cond on sampled tp)] | Loss 1259.839661 | MSE 0.251968 | Likelihood -1259.839661 | KL fp 0.0036 | FP STD 0.0000|
+KL coef: 0.0
+Epoch 0007 [Test seq (cond on sampled tp)] | Best mse 0.251968|
+data: spring, model: RNN-NRI, sample: 0.6, mode:extrap
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:00,  7.52it/s] 25%|██▌       | 2/8 [00:00<00:00,  7.61it/s] 38%|███▊      | 3/8 [00:00<00:00,  7.27it/s] 50%|█████     | 4/8 [00:00<00:00,  6.99it/s] 62%|██████▎   | 5/8 [00:00<00:00,  6.93it/s] 75%|███████▌  | 6/8 [00:00<00:00,  6.70it/s] 88%|████████▊ | 7/8 [00:01<00:00,  5.98it/s]100%|██████████| 8/8 [00:01<00:00,  7.12it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  8.05it/s]100%|██████████| 2/2 [00:00<00:00, 10.19it/s]
+Experiment 77674
+Epoch 0008 [Train seq (cond on sampled tp)] | Loss 336.870564 | MSE 0.067374 | Likelihood -336.870564 | KL fp 0.0044 | FP STD 0.0000|
+Epoch 0008 [Test seq (cond on sampled tp)] | Loss 1044.759583 | MSE 0.208952 | Likelihood -1044.759583 | KL fp 0.0065 | FP STD 0.0000|
+KL coef: 0.0
+Epoch 0008 [Test seq (cond on sampled tp)] | Best mse 0.208952|
+data: spring, model: RNN-NRI, sample: 0.6, mode:extrap
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:00,  7.90it/s] 25%|██▌       | 2/8 [00:00<00:00,  8.19it/s] 38%|███▊      | 3/8 [00:00<00:00,  7.83it/s] 50%|█████     | 4/8 [00:00<00:00,  8.01it/s] 62%|██████▎   | 5/8 [00:00<00:00,  7.97it/s] 75%|███████▌  | 6/8 [00:00<00:00,  7.55it/s] 88%|████████▊ | 7/8 [00:00<00:00,  7.62it/s]100%|██████████| 8/8 [00:00<00:00,  8.22it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s]100%|██████████| 2/2 [00:00<00:00, 13.52it/s]100%|██████████| 2/2 [00:00<00:00, 13.45it/s]
+Experiment 77674
+Epoch 0009 [Train seq (cond on sampled tp)] | Loss 337.264328 | MSE 0.067453 | Likelihood -337.264328 | KL fp 0.0075 | FP STD 0.0000|
+Epoch 0009 [Test seq (cond on sampled tp)] | Loss 923.797089 | MSE 0.184759 | Likelihood -923.797089 | KL fp 0.0099 | FP STD 0.0000|
+KL coef: 0.0
+Epoch 0009 [Test seq (cond on sampled tp)] | Best mse 0.184759|
+data: spring, model: RNN-NRI, sample: 0.6, mode:extrap
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:00,  7.76it/s] 25%|██▌       | 2/8 [00:00<00:00,  7.74it/s] 38%|███▊      | 3/8 [00:00<00:00,  7.91it/s] 50%|█████     | 4/8 [00:00<00:00,  7.87it/s] 62%|██████▎   | 5/8 [00:00<00:00,  8.33it/s] 75%|███████▌  | 6/8 [00:00<00:00,  8.17it/s] 88%|████████▊ | 7/8 [00:00<00:00,  8.20it/s]100%|██████████| 8/8 [00:00<00:00,  8.56it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s]100%|██████████| 2/2 [00:00<00:00,  9.70it/s]100%|██████████| 2/2 [00:00<00:00,  9.67it/s]
+Experiment 77674
+Epoch 0010 [Train seq (cond on sampled tp)] | Loss 337.304501 | MSE 0.067461 | Likelihood -337.304501 | KL fp 0.0126 | FP STD 0.0000|
+Epoch 0010 [Test seq (cond on sampled tp)] | Loss 840.820923 | MSE 0.168164 | Likelihood -840.820923 | KL fp 0.0244 | FP STD 0.0000|
+KL coef: 0.0
+Epoch 0010 [Test seq (cond on sampled tp)] | Best mse 0.168164|
+data: spring, model: RNN-NRI, sample: 0.6, mode:extrap
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:00,  7.88it/s] 25%|██▌       | 2/8 [00:00<00:00,  7.63it/s] 38%|███▊      | 3/8 [00:00<00:00,  8.07it/s] 50%|█████     | 4/8 [00:00<00:00,  7.25it/s] 62%|██████▎   | 5/8 [00:00<00:00,  7.41it/s] 75%|███████▌  | 6/8 [00:00<00:00,  7.65it/s] 88%|████████▊ | 7/8 [00:00<00:00,  7.72it/s]100%|██████████| 8/8 [00:00<00:00,  8.31it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s]100%|██████████| 2/2 [00:00<00:00, 12.45it/s]100%|██████████| 2/2 [00:00<00:00, 12.40it/s]
+Experiment 77674
+Epoch 0011 [Train seq (cond on sampled tp)] | Loss 333.627934 | MSE 0.066726 | Likelihood -333.627934 | KL fp 0.0404 | FP STD 0.0000|
+Epoch 0011 [Test seq (cond on sampled tp)] | Loss 827.876221 | MSE 0.165575 | Likelihood -827.876221 | KL fp 0.0795 | FP STD 0.0000|
+KL coef: 0.0
+Epoch 0011 [Test seq (cond on sampled tp)] | Best mse 0.165575|
+data: spring, model: RNN-NRI, sample: 0.6, mode:extrap
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:00,  8.09it/s] 25%|██▌       | 2/8 [00:00<00:00,  6.54it/s] 38%|███▊      | 3/8 [00:00<00:00,  7.30it/s] 50%|█████     | 4/8 [00:00<00:00,  7.57it/s] 62%|██████▎   | 5/8 [00:00<00:00,  7.62it/s] 75%|███████▌  | 6/8 [00:00<00:00,  7.79it/s] 88%|████████▊ | 7/8 [00:00<00:00,  7.95it/s]100%|██████████| 8/8 [00:00<00:00,  8.33it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  9.53it/s]100%|██████████| 2/2 [00:00<00:00, 11.18it/s]
+Experiment 77674
+Epoch 0012 [Train seq (cond on sampled tp)] | Loss 323.236572 | MSE 0.064647 | Likelihood -323.236572 | KL fp 0.1654 | FP STD 0.0000|
+Epoch 0012 [Test seq (cond on sampled tp)] | Loss 754.774017 | MSE 0.150955 | Likelihood -754.774017 | KL fp 0.1818 | FP STD 0.0000|
+KL coef: 0.0
+Epoch 0012 [Test seq (cond on sampled tp)] | Best mse 0.150955|
+data: spring, model: RNN-NRI, sample: 0.6, mode:extrap
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:00,  9.27it/s] 25%|██▌       | 2/8 [00:00<00:00,  8.62it/s] 38%|███▊      | 3/8 [00:00<00:00,  7.97it/s] 50%|█████     | 4/8 [00:00<00:00,  7.91it/s] 62%|██████▎   | 5/8 [00:00<00:00,  8.38it/s] 88%|████████▊ | 7/8 [00:00<00:00,  9.14it/s]100%|██████████| 8/8 [00:00<00:00,  9.31it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  9.72it/s]100%|██████████| 2/2 [00:00<00:00, 11.87it/s]
+Experiment 77674
+Epoch 0013 [Train seq (cond on sampled tp)] | Loss 304.300037 | MSE 0.060860 | Likelihood -304.300037 | KL fp 0.3039 | FP STD 0.0000|
+Epoch 0013 [Test seq (cond on sampled tp)] | Loss 807.599701 | MSE 0.161520 | Likelihood -807.599701 | KL fp 0.3527 | FP STD 0.0000|
+KL coef: 0.0
+data: spring, model: RNN-NRI, sample: 0.6, mode:extrap
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:00,  7.31it/s] 25%|██▌       | 2/8 [00:00<00:00,  8.28it/s] 38%|███▊      | 3/8 [00:00<00:00,  8.52it/s] 50%|█████     | 4/8 [00:00<00:00,  8.22it/s] 62%|██████▎   | 5/8 [00:00<00:00,  8.31it/s] 75%|███████▌  | 6/8 [00:00<00:00,  8.06it/s] 88%|████████▊ | 7/8 [00:00<00:00,  7.84it/s]100%|██████████| 8/8 [00:00<00:00,  8.53it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s]100%|██████████| 2/2 [00:00<00:00, 13.54it/s]100%|██████████| 2/2 [00:00<00:00, 13.21it/s]
+Experiment 77674
+Epoch 0014 [Train seq (cond on sampled tp)] | Loss 293.576469 | MSE 0.058715 | Likelihood -293.576469 | KL fp 0.3538 | FP STD 0.0000|
+Epoch 0014 [Test seq (cond on sampled tp)] | Loss 767.757111 | MSE 0.153551 | Likelihood -767.757111 | KL fp 0.3842 | FP STD 0.0000|
+KL coef: 0.0
+data: spring, model: RNN-NRI, sample: 0.6, mode:extrap
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:00,  7.16it/s] 25%|██▌       | 2/8 [00:00<00:00,  6.81it/s] 38%|███▊      | 3/8 [00:00<00:00,  7.12it/s] 50%|█████     | 4/8 [00:00<00:00,  7.62it/s] 62%|██████▎   | 5/8 [00:00<00:00,  7.85it/s] 75%|███████▌  | 6/8 [00:00<00:00,  7.70it/s] 88%|████████▊ | 7/8 [00:00<00:00,  7.63it/s]100%|██████████| 8/8 [00:00<00:00,  8.04it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  9.87it/s]100%|██████████| 2/2 [00:00<00:00, 11.14it/s]
+Experiment 77674
+Epoch 0015 [Train seq (cond on sampled tp)] | Loss 286.330521 | MSE 0.057266 | Likelihood -286.330521 | KL fp 0.3662 | FP STD 0.0000|
+Epoch 0015 [Test seq (cond on sampled tp)] | Loss 704.935364 | MSE 0.140987 | Likelihood -704.935364 | KL fp 0.3704 | FP STD 0.0000|
+KL coef: 0.0
+Epoch 0015 [Test seq (cond on sampled tp)] | Best mse 0.140987|
+data: spring, model: RNN-NRI, sample: 0.6, mode:extrap
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:00,  8.26it/s] 25%|██▌       | 2/8 [00:00<00:00,  8.64it/s] 38%|███▊      | 3/8 [00:00<00:00,  7.78it/s] 50%|█████     | 4/8 [00:00<00:00,  8.06it/s] 62%|██████▎   | 5/8 [00:00<00:00,  7.69it/s] 75%|███████▌  | 6/8 [00:00<00:00,  7.84it/s] 88%|████████▊ | 7/8 [00:00<00:00,  7.58it/s]100%|██████████| 8/8 [00:00<00:00,  8.19it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  8.72it/s]100%|██████████| 2/2 [00:00<00:00,  9.57it/s]
+Experiment 77674
+Epoch 0016 [Train seq (cond on sampled tp)] | Loss 272.475708 | MSE 0.054495 | Likelihood -272.475708 | KL fp 0.3781 | FP STD 0.0000|
+Epoch 0016 [Test seq (cond on sampled tp)] | Loss 738.270935 | MSE 0.147654 | Likelihood -738.270935 | KL fp 0.3942 | FP STD 0.0000|
+KL coef: 0.0
+data: spring, model: RNN-NRI, sample: 0.6, mode:extrap
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:00,  8.18it/s] 25%|██▌       | 2/8 [00:00<00:00,  7.76it/s] 38%|███▊      | 3/8 [00:00<00:00,  8.32it/s] 50%|█████     | 4/8 [00:00<00:00,  8.61it/s] 62%|██████▎   | 5/8 [00:00<00:00,  8.64it/s] 75%|███████▌  | 6/8 [00:00<00:00,  8.58it/s] 88%|████████▊ | 7/8 [00:00<00:00,  8.65it/s]100%|██████████| 8/8 [00:00<00:00,  8.93it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s]100%|██████████| 2/2 [00:00<00:00, 12.34it/s]100%|██████████| 2/2 [00:00<00:00, 12.28it/s]
+Experiment 77674
+Epoch 0017 [Train seq (cond on sampled tp)] | Loss 266.140499 | MSE 0.053228 | Likelihood -266.140499 | KL fp 0.4394 | FP STD 0.0000|
+Epoch 0017 [Test seq (cond on sampled tp)] | Loss 722.754791 | MSE 0.144551 | Likelihood -722.754791 | KL fp 0.4453 | FP STD 0.0000|
+KL coef: 0.0
+data: spring, model: RNN-NRI, sample: 0.6, mode:extrap
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:00,  8.43it/s] 25%|██▌       | 2/8 [00:00<00:00,  8.31it/s] 38%|███▊      | 3/8 [00:00<00:00,  7.34it/s] 50%|█████     | 4/8 [00:00<00:00,  8.05it/s] 62%|██████▎   | 5/8 [00:00<00:00,  8.48it/s] 75%|███████▌  | 6/8 [00:00<00:00,  7.63it/s] 88%|████████▊ | 7/8 [00:00<00:00,  6.72it/s]100%|██████████| 8/8 [00:01<00:00,  7.82it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s]100%|██████████| 2/2 [00:00<00:00, 12.11it/s]100%|██████████| 2/2 [00:00<00:00, 11.99it/s]
+Experiment 77674
+Epoch 0018 [Train seq (cond on sampled tp)] | Loss 259.598104 | MSE 0.051920 | Likelihood -259.598104 | KL fp 0.4867 | FP STD 0.0000|
+Epoch 0018 [Test seq (cond on sampled tp)] | Loss 552.745483 | MSE 0.110549 | Likelihood -552.745483 | KL fp 0.4952 | FP STD 0.0000|
+KL coef: 0.0
+Epoch 0018 [Test seq (cond on sampled tp)] | Best mse 0.110549|
+data: spring, model: RNN-NRI, sample: 0.6, mode:extrap
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:00,  8.18it/s] 25%|██▌       | 2/8 [00:00<00:00,  7.17it/s] 38%|███▊      | 3/8 [00:00<00:00,  6.88it/s] 50%|█████     | 4/8 [00:00<00:00,  7.14it/s] 62%|██████▎   | 5/8 [00:00<00:00,  7.41it/s] 75%|███████▌  | 6/8 [00:00<00:00,  7.32it/s] 88%|████████▊ | 7/8 [00:00<00:00,  7.69it/s]100%|██████████| 8/8 [00:00<00:00,  8.01it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  9.96it/s]100%|██████████| 2/2 [00:00<00:00, 10.06it/s]
+Experiment 77674
+Epoch 0019 [Train seq (cond on sampled tp)] | Loss 256.636759 | MSE 0.051327 | Likelihood -256.636759 | KL fp 0.5181 | FP STD 0.0000|
+Epoch 0019 [Test seq (cond on sampled tp)] | Loss 572.170380 | MSE 0.114434 | Likelihood -572.170380 | KL fp 0.5101 | FP STD 0.0000|
+KL coef: 0.0
+data: spring, model: RNN-NRI, sample: 0.6, mode:extrap
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:00,  8.52it/s] 25%|██▌       | 2/8 [00:00<00:00,  7.56it/s] 38%|███▊      | 3/8 [00:00<00:00,  7.37it/s] 50%|█████     | 4/8 [00:00<00:00,  6.60it/s] 62%|██████▎   | 5/8 [00:00<00:00,  7.41it/s] 75%|███████▌  | 6/8 [00:00<00:00,  7.74it/s] 88%|████████▊ | 7/8 [00:00<00:00,  7.70it/s]100%|██████████| 8/8 [00:01<00:00,  8.00it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s]100%|██████████| 2/2 [00:00<00:00, 12.20it/s]100%|██████████| 2/2 [00:00<00:00, 12.05it/s]
+Experiment 77674
+Epoch 0020 [Train seq (cond on sampled tp)] | Loss 255.027155 | MSE 0.051005 | Likelihood -255.027155 | KL fp 0.5278 | FP STD 0.0000|
+Epoch 0020 [Test seq (cond on sampled tp)] | Loss 510.682083 | MSE 0.102136 | Likelihood -510.682083 | KL fp 0.5096 | FP STD 0.0000|
+KL coef: 0.0
+Epoch 0020 [Test seq (cond on sampled tp)] | Best mse 0.102136|
+data: spring, model: RNN-NRI, sample: 0.6, mode:extrap
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:00,  7.33it/s] 25%|██▌       | 2/8 [00:00<00:00,  7.06it/s] 38%|███▊      | 3/8 [00:00<00:00,  7.57it/s] 50%|█████     | 4/8 [00:00<00:00,  8.20it/s] 62%|██████▎   | 5/8 [00:00<00:00,  8.17it/s] 75%|███████▌  | 6/8 [00:00<00:00,  7.80it/s] 88%|████████▊ | 7/8 [00:00<00:00,  7.60it/s]100%|██████████| 8/8 [00:00<00:00,  8.19it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s]100%|██████████| 2/2 [00:00<00:00, 14.15it/s]100%|██████████| 2/2 [00:00<00:00, 14.08it/s]
+Experiment 77674
+Epoch 0021 [Train seq (cond on sampled tp)] | Loss 255.229420 | MSE 0.051046 | Likelihood -255.229420 | KL fp 0.5317 | FP STD 0.0000|
+Epoch 0021 [Test seq (cond on sampled tp)] | Loss 509.501358 | MSE 0.101900 | Likelihood -509.501358 | KL fp 0.5221 | FP STD 0.0000|
+KL coef: 0.0
+Epoch 0021 [Test seq (cond on sampled tp)] | Best mse 0.101900|
+data: spring, model: RNN-NRI, sample: 0.6, mode:extrap
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:00,  8.02it/s] 25%|██▌       | 2/8 [00:00<00:00,  7.07it/s] 38%|███▊      | 3/8 [00:00<00:00,  7.51it/s] 50%|█████     | 4/8 [00:00<00:00,  8.18it/s] 62%|██████▎   | 5/8 [00:00<00:00,  8.02it/s] 75%|███████▌  | 6/8 [00:00<00:00,  8.55it/s] 88%|████████▊ | 7/8 [00:00<00:00,  8.94it/s]100%|██████████| 8/8 [00:00<00:00,  8.87it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  9.20it/s]100%|██████████| 2/2 [00:00<00:00, 11.27it/s]
+Experiment 77674
+Epoch 0022 [Train seq (cond on sampled tp)] | Loss 251.843109 | MSE 0.050369 | Likelihood -251.843109 | KL fp 0.5417 | FP STD 0.0000|
+Epoch 0022 [Test seq (cond on sampled tp)] | Loss 521.973907 | MSE 0.104395 | Likelihood -521.973907 | KL fp 0.5203 | FP STD 0.0000|
+KL coef: 0.0
+data: spring, model: RNN-NRI, sample: 0.6, mode:extrap
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:00,  8.03it/s] 25%|██▌       | 2/8 [00:00<00:00,  7.05it/s] 38%|███▊      | 3/8 [00:00<00:00,  6.82it/s] 50%|█████     | 4/8 [00:00<00:00,  6.78it/s] 62%|██████▎   | 5/8 [00:00<00:00,  6.80it/s] 75%|███████▌  | 6/8 [00:00<00:00,  6.98it/s] 88%|████████▊ | 7/8 [00:00<00:00,  7.58it/s]100%|██████████| 8/8 [00:01<00:00,  7.78it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  9.63it/s]100%|██████████| 2/2 [00:00<00:00,  9.05it/s]100%|██████████| 2/2 [00:00<00:00,  9.11it/s]
+Experiment 77674
+Epoch 0023 [Train seq (cond on sampled tp)] | Loss 254.936163 | MSE 0.050987 | Likelihood -254.936163 | KL fp 0.5411 | FP STD 0.0000|
+Epoch 0023 [Test seq (cond on sampled tp)] | Loss 501.711151 | MSE 0.100342 | Likelihood -501.711151 | KL fp 0.5279 | FP STD 0.0000|
+KL coef: 0.0
+Epoch 0023 [Test seq (cond on sampled tp)] | Best mse 0.100342|
+data: spring, model: RNN-NRI, sample: 0.6, mode:extrap
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:00,  7.80it/s] 25%|██▌       | 2/8 [00:00<00:00,  7.15it/s] 38%|███▊      | 3/8 [00:00<00:00,  7.16it/s] 50%|█████     | 4/8 [00:00<00:00,  7.55it/s] 62%|██████▎   | 5/8 [00:00<00:00,  7.66it/s] 75%|███████▌  | 6/8 [00:00<00:00,  7.53it/s] 88%|████████▊ | 7/8 [00:00<00:00,  7.81it/s]100%|██████████| 8/8 [00:00<00:00,  8.34it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  9.50it/s]100%|██████████| 2/2 [00:00<00:00, 12.10it/s]
+Experiment 77674
+Epoch 0024 [Train seq (cond on sampled tp)] | Loss 250.475885 | MSE 0.050095 | Likelihood -250.475885 | KL fp 0.5436 | FP STD 0.0000|
+Epoch 0024 [Test seq (cond on sampled tp)] | Loss 490.725403 | MSE 0.098145 | Likelihood -490.725403 | KL fp 0.5274 | FP STD 0.0000|
+KL coef: 0.0
+Epoch 0024 [Test seq (cond on sampled tp)] | Best mse 0.098145|
+data: spring, model: RNN-NRI, sample: 0.6, mode:extrap
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:00,  9.44it/s] 25%|██▌       | 2/8 [00:00<00:00,  9.55it/s] 38%|███▊      | 3/8 [00:00<00:00,  9.46it/s] 50%|█████     | 4/8 [00:00<00:00,  9.52it/s] 62%|██████▎   | 5/8 [00:00<00:00,  8.37it/s] 75%|███████▌  | 6/8 [00:00<00:00,  7.74it/s] 88%|████████▊ | 7/8 [00:00<00:00,  7.68it/s]100%|██████████| 8/8 [00:00<00:00,  8.89it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  9.10it/s]100%|██████████| 2/2 [00:00<00:00, 10.51it/s]
+Experiment 77674
+Epoch 0025 [Train seq (cond on sampled tp)] | Loss 248.625128 | MSE 0.049725 | Likelihood -248.625128 | KL fp 0.5444 | FP STD 0.0000|
+Epoch 0025 [Test seq (cond on sampled tp)] | Loss 477.274307 | MSE 0.095455 | Likelihood -477.274307 | KL fp 0.5258 | FP STD 0.0000|
+KL coef: 0.0
+Epoch 0025 [Test seq (cond on sampled tp)] | Best mse 0.095455|
+data: spring, model: RNN-NRI, sample: 0.6, mode:extrap
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:00,  9.41it/s] 25%|██▌       | 2/8 [00:00<00:00,  8.27it/s] 38%|███▊      | 3/8 [00:00<00:00,  8.22it/s] 50%|█████     | 4/8 [00:00<00:00,  7.56it/s] 62%|██████▎   | 5/8 [00:00<00:00,  8.03it/s] 75%|███████▌  | 6/8 [00:00<00:00,  8.05it/s] 88%|████████▊ | 7/8 [00:00<00:00,  7.99it/s]100%|██████████| 8/8 [00:00<00:00,  8.55it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s]100%|██████████| 2/2 [00:00<00:00, 12.63it/s]100%|██████████| 2/2 [00:00<00:00, 12.57it/s]
+Experiment 77674
+Epoch 0026 [Train seq (cond on sampled tp)] | Loss 248.746454 | MSE 0.049749 | Likelihood -248.746454 | KL fp 0.5448 | FP STD 0.0000|
+Epoch 0026 [Test seq (cond on sampled tp)] | Loss 474.742706 | MSE 0.094949 | Likelihood -474.742706 | KL fp 0.5310 | FP STD 0.0000|
+KL coef: 0.0
+Epoch 0026 [Test seq (cond on sampled tp)] | Best mse 0.094949|
+data: spring, model: RNN-NRI, sample: 0.6, mode:extrap
+  0%|          | 0/8 [00:00<?, ?it/s] 25%|██▌       | 2/8 [00:00<00:00, 10.07it/s] 50%|█████     | 4/8 [00:00<00:00,  9.06it/s] 62%|██████▎   | 5/8 [00:00<00:00,  8.10it/s] 75%|███████▌  | 6/8 [00:00<00:00,  7.64it/s] 88%|████████▊ | 7/8 [00:00<00:00,  8.17it/s]100%|██████████| 8/8 [00:00<00:00,  8.98it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  9.61it/s]100%|██████████| 2/2 [00:00<00:00, 10.01it/s]
+Experiment 77674
+Epoch 0027 [Train seq (cond on sampled tp)] | Loss 248.152557 | MSE 0.049631 | Likelihood -248.152557 | KL fp 0.5473 | FP STD 0.0000|
+Epoch 0027 [Test seq (cond on sampled tp)] | Loss 477.473846 | MSE 0.095495 | Likelihood -477.473846 | KL fp 0.5302 | FP STD 0.0000|
+KL coef: 0.0
+data: spring, model: RNN-NRI, sample: 0.6, mode:extrap
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:00,  9.97it/s] 25%|██▌       | 2/8 [00:00<00:00,  8.90it/s] 38%|███▊      | 3/8 [00:00<00:00,  8.48it/s] 50%|█████     | 4/8 [00:00<00:00,  8.17it/s] 62%|██████▎   | 5/8 [00:00<00:00,  7.70it/s] 75%|███████▌  | 6/8 [00:00<00:00,  7.34it/s] 88%|████████▊ | 7/8 [00:00<00:00,  7.74it/s]100%|██████████| 8/8 [00:00<00:00,  8.59it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s]100%|██████████| 2/2 [00:00<00:00, 12.35it/s]100%|██████████| 2/2 [00:00<00:00, 12.30it/s]
+Experiment 77674
+Epoch 0028 [Train seq (cond on sampled tp)] | Loss 247.278585 | MSE 0.049456 | Likelihood -247.278585 | KL fp 0.5501 | FP STD 0.0000|
+Epoch 0028 [Test seq (cond on sampled tp)] | Loss 482.155258 | MSE 0.096431 | Likelihood -482.155258 | KL fp 0.5346 | FP STD 0.0000|
+KL coef: 0.0
+data: spring, model: RNN-NRI, sample: 0.6, mode:extrap
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:00,  9.62it/s] 25%|██▌       | 2/8 [00:00<00:00,  8.92it/s] 38%|███▊      | 3/8 [00:00<00:00,  8.59it/s] 50%|█████     | 4/8 [00:00<00:00,  7.88it/s] 62%|██████▎   | 5/8 [00:00<00:00,  6.86it/s] 75%|███████▌  | 6/8 [00:00<00:00,  7.20it/s] 88%|████████▊ | 7/8 [00:00<00:00,  7.22it/s]100%|██████████| 8/8 [00:00<00:00,  8.02it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s]100%|██████████| 2/2 [00:00<00:00, 13.16it/s]100%|██████████| 2/2 [00:00<00:00, 13.10it/s]
+Experiment 77674
+Epoch 0029 [Train seq (cond on sampled tp)] | Loss 245.770567 | MSE 0.049154 | Likelihood -245.770567 | KL fp 0.5523 | FP STD 0.0000|
+Epoch 0029 [Test seq (cond on sampled tp)] | Loss 474.741852 | MSE 0.094948 | Likelihood -474.741852 | KL fp 0.5322 | FP STD 0.0000|
+KL coef: 0.0
+Epoch 0029 [Test seq (cond on sampled tp)] | Best mse 0.094948|
+data: spring, model: RNN-NRI, sample: 0.6, mode:extrap
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:00,  7.14it/s] 25%|██▌       | 2/8 [00:00<00:00,  6.99it/s] 38%|███▊      | 3/8 [00:00<00:00,  7.34it/s] 50%|█████     | 4/8 [00:00<00:00,  8.07it/s] 62%|██████▎   | 5/8 [00:00<00:00,  8.19it/s] 75%|███████▌  | 6/8 [00:00<00:00,  7.93it/s] 88%|████████▊ | 7/8 [00:00<00:00,  7.77it/s]100%|██████████| 8/8 [00:00<00:00,  8.31it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  7.13it/s]100%|██████████| 2/2 [00:00<00:00,  9.92it/s]
+Experiment 77674
+Epoch 0030 [Train seq (cond on sampled tp)] | Loss 245.676832 | MSE 0.049135 | Likelihood -245.676832 | KL fp 0.5497 | FP STD 0.0000|
+Epoch 0030 [Test seq (cond on sampled tp)] | Loss 476.455353 | MSE 0.095291 | Likelihood -476.455353 | KL fp 0.5292 | FP STD 0.0000|
+KL coef: 0.0
+data: spring, model: RNN-NRI, sample: 0.6, mode:extrap

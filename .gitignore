@@ -4,6 +4,11 @@ __pycache__/
 *.pyc
 experiments/
 experiments_at/
+experiments_corrected/
+experiments_odernn/
+experiments_latentode/
+experiments_edgegnn/
+experiments_rnnnri/
 logs/
 run_logs/*_driver.log
 plot/
@@ -12,3 +17,6 @@ data/*.npy
 data/spring/
 data/charged/
 data/motion/
+data/raw/
+data/processed/
+data/Dataset for Transient Stability Assessment of IEEE 39-Bus System/

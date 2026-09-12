@@ -201,3 +201,156 @@ charged extrapolation, left as an open question here.
 - **Checkpoints**: `experiments/` (LG-ODE), `experiments_at/` (AT-LG-ODE) — both gitignored
 - **Full datasets**: `data/spring/`, `data/charged/` (gitignored, regenerate via Part 2's
   command with `--simulation springs` or `--simulation charged`)
+
+---
+
+# Phase 2: IEEE39-Gen, Corrected LG-ODE, and four new baselines
+
+AT-LG-ODE work above is paused (per direction) to first re-establish a trustworthy LG-ODE
+baseline — including on a new third dataset — and compare it against four other reimplemented
+methods. Results are in `RESULTS.md`'s "Phase 2" section; this covers the technical detail.
+
+## Part 7 — IEEE39-Gen dataset
+
+A third dataset, built from a public Mendeley transient-stability-assessment corpus (IEEE
+39-bus power grid), audited and prepared as `data/processed/ieee39_gen/ieee39_gen.npz` via
+`data/prepare_ieee39_gen.py`. Full detail already lives in `reports/ieee39_gen.md` and
+`reports/DATA_CHARACTERISTICS.md` (verdict, exact shapes, feature-major reshape trap, per-sample
+metadata limits) — not repeated here. The one fact that matters for everything below: its
+`[10,10]` graph is a **complete graph** (every generator pair connected), an explicit
+interaction-support *assumption* standing in for the still-unavailable physical transmission
+topology (no ANDES model, no admittance data anywhere in this repo) — never to be read as
+recovered physical topology.
+
+## Part 8 — Corrected LG-ODE
+
+Same model architecture as LG-ODE (`lib/create_latent_ode_model.py`, imported unchanged), only
+the data pipeline is fixed, via a new `lib/corrected_dataLoader.py: CorrectedParseData` and
+`lib/ieee39_dataLoader.py: IEEE39ParseData`, driven by a new `run_models_corrected.py`. Three
+real, confirmed issues in the original pipeline (used unmodified everywhere until now):
+
+1. **Object-identity temporal edges.** `transfer_one_graph`'s self-loop check,
+   `(edge + eye)[i][j] == 1`, silently assumes the raw physical adjacency's diagonal is 0. True
+   for springs (self-loops fire correctly). Charged particles' diagonal is always 1 (a charge
+   times itself), so the check never fires for `i==j` — self-loops never form — *and*, more
+   severely, only "+1" (same-charge/repel) cross-object pairs ever get a temporal edge; "-1"
+   (attract) pairs are silently dropped from the encoder's temporal graph entirely. Verified
+   directly: `edge_same` was 0% of edges for charged particles (vs ~27% for springs) under the
+   original code. Fixed by defining connectivity explicitly instead of relying on the raw
+   matrix's diagonal: self-loops (`i==j`) always connect; cross-object pairs connect whenever
+   the raw adjacency is non-zero, regardless of sign — works uniformly for springs' `{0,1}`,
+   charged's `{-1,+1}`, and IEEE39-Gen's dense all-ones graph. Confirmed fixed: charged
+   particles' edge count nearly tripled (2,587 → 7,907 per graph), `edge_same` now ~20.6%.
+2. **Train-only normalization.** `run_models.py` calls `load_data(data_type="test")` *before*
+   `load_data(data_type="train")`, and the original normalization logic fits its statistics on
+   whichever call happens first (`if self.max_loc is None`) — so every run in this project
+   before this fix had actually normalized using test-set statistics, not train. Fixed by fitting
+   explicitly on `data_type=="train"` and requiring train to be loaded first (enforced in
+   `run_models_corrected.py`'s load order).
+3. **No validation split.** Only train/test files ever existed. Fixed by carving a fixed,
+   disjoint 10% slice of whole trajectories out of the train pool for springs/charged (test
+   stays entirely separate, already leakage-free); IEEE39-Gen already ships a proper stratified
+   80/10/10 split (`reports/ieee39_gen.md`).
+
+**IEEE39 dataloader adapter** (`lib/ieee39_dataLoader.py: IEEE39ParseData`): builds the same
+encoder/decoder/graph batch interface as `CorrectedParseData` directly from the dense,
+mask-based `ieee39_gen.npz` arrays (rather than springs/charged's ragged per-object `.npy`
+files) — a genuinely different construction path, but same output shape/semantics, so the
+unmodified LG-ODE model plugs in either way. One implementation bug caught before it shipped: an
+early draft copied springs/charged's extrapolation `time_begin=1` convention verbatim, which is
+meaningless on IEEE39's real-seconds time scale — fixed to use the actual context/forecast
+boundary time (`times[CONTEXT_END]`), consistent with every other dataset's "encoder and decoder
+share one time origin" invariant.
+
+**A near-OOM catch**: IEEE39's dense complete graph, combined with an initial time-gap cutoff
+copied loosely from springs/charged (itself assuming `[0,1]`-normalized time, meaningless on
+IEEE39's raw-seconds scale), produced ~31,500 edges per graph (vs ~4,600-7,900 for the other
+datasets) and pushed a single training batch to 100% GPU memory (32/32GB) with no progress after
+20+ minutes — the same failure signature as the AT-LG-ODE plain-`odeint` memory incident
+(Part 4). Retuned empirically (`lib/ieee39_dataLoader.py`'s `max_gap = 2*dt/sample_percent`) to
+~8,660 edges/graph, in line with the other datasets; confirmed stable at ~12.7GB, ~11s/it.
+
+## Part 9 — Four new baselines
+
+All four reuse `CorrectedParseData`/`IEEE39ParseData` unchanged for a fair, apples-to-apples
+comparison. None of the paper's own comparison baselines (Latent-ODE, Weight-Decay, Edge-GNN,
+NRI+RNN) exist anywhere in this codebase — confirmed by a targeted search (no matching files;
+the only near-hit is a dead `odernn_list` variable in `lib/new_dataLoader.py`, built but never
+returned — a leftover from the authors having started from Rubanova et al.'s own released
+ODE-RNN/Latent-ODE code and stripped the actual model before publishing).
+
+- **ODE-RNN** (`lib/nongraph_ode.py`, `lib/baseline_odernn.py`, `run_models_odernn.py`):
+  Rubanova et al. 2019. One shared, per-node continuous-time GRU-ODE hybrid, no graph; reuses
+  `lib/diffeq_solver.py`'s existing (previously unused) non-graph `ODEFunc`. Batched via a union
+  of every sequence's observation times plus the decoder's query times in one pass (all
+  datasets here discretize time onto a small shared grid, so this union is small and exact, no
+  tolerance/rounding needed).
+- **Latent-ODE** (`lib/baseline_latent_ode.py`, `run_models_latentode.py`): Rubanova et al.
+  2019. Per-node VAE reusing `VAE_Baseline`'s KL/likelihood machinery unchanged (same pattern
+  LG-ODE itself uses). Documented simplification: encoder runs forward (reusing the ODE-RNN
+  runner) then does one extra backward ODE solve to align the summary with a t=0 initial
+  condition, instead of the original paper's native backward-in-time RNN encoder.
+- **Edge-GNN** (`lib/edge_gnn_models.py`, `lib/create_edgegnn_model.py`, `run_models_edgegnn.py`):
+  Gong & Cheng, the LG-ODE paper's own graph-encoder baseline. Needed the least new code: the
+  temporal graph it specifies (self-loops via object identity, cross-object edges via the
+  dataset's graph, never inferred from the raw relation matrix's diagonal) is *exactly* what
+  `CorrectedParseData`/`IEEE39ParseData` already build. Only a simpler message-passing layer was
+  needed (time-gap as a plain edge attribute, no attention, no same/diff projection split) and
+  documented as reusing mean pooling (`GNN`'s existing `aggregate="add"` branch) in place of
+  LG-ODE's learned temporal self-attention, matching the paper's own description of Edge-GNN's
+  sequence representation as a simple pooled sum rather than a learned attention.
+- **RNN-NRI** (`lib/nri_baseline.py`, `lib/baseline_rnn_nri.py`, `run_models_rnnnri.py`): the
+  most involved baseline. Stage 1 (RNN imputation) is a shared bidirectional GRU producing a
+  dense regularly-sampled reconstruction from each node's masked observations only (never
+  decoder targets — holds by construction, since the imputer only ever sees the encoder's
+  observed subset). Interpolation output is this reconstruction directly, following the original
+  LG-ODE paper's own precedent for this baseline (RNN handles interpolation; NRI, applied after
+  imputation, handles extrapolation only). Stage 2 (extrapolation) infers a relation type per
+  edge over the *complete* candidate graph (every off-diagonal pair, standard NRI practice) via
+  a simplified single-round relation encoder, then rolls out the forecast one discrete grid-step
+  at a time by reusing `lib/gnn_models.py: NRIConv` directly — its `return inputs + pred`
+  residual update already *is* Kipf et al.'s discrete-time decoder step; elsewhere in this
+  codebase it's driven continuously as an ODE vector field, but this is its native form.
+  Two real bugs were caught during smoke-testing, not just designed around:
+  - `NRIConv`'s residual requires `in_channels == out_channels` (confirmed by how the rest of
+    this codebase always calls it, `in=out=hidden_dim`, wrapped by separate projections) — an
+    initial attempt called it directly on raw 4-dim state and crashed; fixed by adding explicit
+    input/output projections around a hidden-dim-sized rollout state.
+  - The relation encoder's input size was built lazily from the union-time grid length, which
+    varies batch to batch (different random masks produce different-sized unions) — crashed on
+    the second batch with a shape mismatch. Fixed (and documented as a simplification vs. the
+    original paper's flattened full-sequence input) by using each node's (mean, std) pooled over
+    the context window as a fixed-size input instead.
+  IEEE39 extrapolation shows a striking first-batch train loss (millions) before stabilizing —
+  the compounding-error failure mode the design already calls out as an expected limitation of
+  autoregressive discrete rollout with an untrained decoder; gradient clipping keeps it from
+  actually diverging, and test MSE after the epoch is reasonable. This limitation shows up
+  clearly in the final numbers too — see `RESULTS.md`.
+
+## Part 10 — A bash bug in the first baseline-matrix run
+
+The first attempt at running all 24 baseline combinations (`run_logs/baseline_matrix.sh`) used
+a shell function `run() { ... extrap_flag=... ; }` whose internal variable happened to share a
+name with the *outer* loop's `extrap_flag` variable. Bash functions don't scope local variables
+by default (no `local` keyword was used), so each call to `run()` silently clobbered the outer
+loop's variable as a side effect. Net result: only the *first* baseline called in each iteration
+(ODE-RNN) received the correct `--extrap True` flag; the next three (Latent-ODE, Edge-GNN,
+RNN-NRI) silently ran in interpolation mode for all 9 of their "extrapolation" jobs, producing
+results byte-identical to their interpolation runs (a dead giveaway, caught by comparing the two
+before trusting either). Fixed with `local` scoping in both the original script and a targeted
+rerun script for just the 9 affected jobs; verified via each log's `Namespace(...)` line showing
+`extrap='True'` before treating any number as real. All 24 cells in `RESULTS.md` are from
+verified-correct runs.
+
+## Where to look (Phase 2)
+
+- **Dataset**: `data/prepare_ieee39_gen.py`, `data/processed/ieee39_gen/` (gitignored),
+  `reports/ieee39_gen.md`, `reports/DATA_READY.md`, `reports/DATA_CHARACTERISTICS.md`
+- **Corrected LG-ODE**: `run_models_corrected.py`, `lib/corrected_dataLoader.py`,
+  `lib/ieee39_dataLoader.py`, `run_logs/corrected_*.log`
+- **Baselines**: `run_models_{odernn,latentode,edgegnn,rnnnri}.py`,
+  `lib/{nongraph_ode,baseline_odernn,baseline_latent_ode,edge_gnn_models,
+  create_edgegnn_model,nri_baseline,baseline_rnn_nri}.py`,
+  `run_logs/{odernn,latentode,edgegnn,rnnnri}_*.log`
+- **Checkpoints**: `experiments_corrected/`, `experiments_odernn/`, `experiments_latentode/`,
+  `experiments_edgegnn/`, `experiments_rnnnri/` (all gitignored)

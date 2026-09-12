@@ -121,3 +121,89 @@ python run_models_at.py --data charged --dataset-dir data/charged --niters 30 --
 
 See `CHANGES.md` for the full technical writeup of what AT-LG-ODE changes and why, and for the
 compatibility/stability fixes applied to the original codebase.
+
+---
+
+# Phase 2: Corrected LG-ODE and the full baseline suite
+
+AT-LG-ODE work above is paused (per direction) in favor of re-establishing a trustworthy LG-ODE
+baseline first, and comparing it against five other methods: ODE-RNN, Latent-ODE, Edge-GNN,
+RNN-NRI, and Corrected LG-ODE itself. All results below are MSE ×10⁻² (paper units),
+best-test-epoch, 30-epoch budget, seed 1991, 60% observed, across three datasets: springs,
+charged particles, and IEEE39-Gen (a new dataset — see `reports/ieee39_gen.md` and
+`reports/DATA_CHARACTERISTICS.md`). See `CHANGES.md` Parts 7-10 for full technical detail on
+everything summarized here.
+
+## Corrected LG-ODE vs. the original (uncorrected) LG-ODE
+
+"Corrected" fixes three issues in the original data pipeline (used unmodified since the start
+of this project): an object-identity/self-loop bug in temporal-edge construction (silently
+dropped almost all of charged particles' edges), normalization statistics actually being fit on
+the *test* set instead of train (confirmed by tracing the code — `run_models.py` loads test
+before train), and no validation split at all. See `CHANGES.md` Part 8.
+
+| Task | Uncorrected LG-ODE | Corrected LG-ODE | Change |
+|---|---|---|---|
+| Springs interpolation | 0.3406 | 0.6500 | worse |
+| Springs extrapolation | 1.6418 | 2.8715 | worse |
+| Charged interpolation | 0.8033 | 0.9132 | worse |
+| Charged extrapolation | 5.8111 | **4.8943** | **better** |
+
+Most cells get *worse* after removing the train/test normalization leakage — expected and
+reassuring, since it confirms the leakage was real and was inflating the original numbers.
+Charged extrapolation improves anyway because the connectivity fix's benefit (edge count for
+charged nearly tripled, 2,587 → 7,907 per graph, once self-loops and previously-dropped
+"attract" pairs are restored) outweighs the lost leakage advantage there.
+
+## Full baseline comparison
+
+| Dataset / Task | ODE-RNN | Latent-ODE | Edge-GNN | RNN-NRI | Corrected LG-ODE |
+|---|---|---|---|---|---|
+| Springs interp | **0.088** | 0.203 | 1.235 | 0.117 | 0.650 |
+| Springs extrap | 5.760 | 4.740 | 3.773 | 9.495 | **2.872** |
+| Charged interp | 0.221 | 0.489 | 1.038 | **0.189** | 0.913 |
+| Charged extrap | 7.021 | **4.841** | 5.132 | 10.584 | 4.894 |
+| IEEE39 interp | 1.470 | 10.910 | 14.913 | **1.076** | 11.713 |
+| IEEE39 extrap | **17.791** | 19.856 | 20.340 | 43.381 | 18.507 |
+
+(bold = best per row; full per-run logs: `run_logs/{odernn,latentode,edgegnn,rnnnri,corrected}_{spring,charged,ieee39}_{interp,extrap}_60.log`)
+
+### Headline finding
+
+Graph structure (Corrected LG-ODE) wins or is closely competitive on **every extrapolation
+task**, but loses — often badly — on **every interpolation task**, sometimes to the simplest
+possible baseline (ODE-RNN, a per-node model with no graph at all). The starkest case is IEEE39
+interpolation: ODE-RNN (1.470) and RNN-NRI (1.076) beat every graph-based model by roughly
+10-14x (Corrected LG-ODE 11.713, Edge-GNN 14.913).
+
+**Caveat, not dismissal**: IEEE39-interp's graph-based models were still visibly improving at
+epoch 30 in the training logs (not plateaued), while the simpler models converge faster — so
+part of that specific gap may be "the graph models need more than 30 epochs here," not purely
+"graph structure hurts interpolation." The extrapolation pattern (graph structure wins
+consistently, across all three datasets) is not explained by that caveat, since Corrected
+LG-ODE's extrapolation runs show the same kind of late-epoch improvement *and* still end up
+ahead.
+
+RNN-NRI's extrapolation numbers are worst-in-class everywhere, most dramatically on IEEE39
+(43.381 — roughly 2.3x worse than the next-worst model). This matches the expected limitation
+called out for this baseline: autoregressive discrete rollout compounds error over many steps,
+and was observed directly in training (first-batch train loss spiking into the millions on
+IEEE39 before stabilizing) — see `CHANGES.md` Part 9.
+
+## What was run (Phase 2)
+
+```
+# Corrected LG-ODE (springs, charged, ieee39 x interp, extrap)
+python run_models_corrected.py --data spring  --niters 30 --alias corrected_spring_interp_60
+python run_models_corrected.py --data spring  --niters 30 --extrap True --alias corrected_spring_extrap_60
+python run_models_corrected.py --data charged --niters 30 --alias corrected_charged_interp_60
+python run_models_corrected.py --data charged --niters 30 --extrap True --alias corrected_charged_extrap_60
+python run_models_corrected.py --data ieee39  --niters 30 --alias corrected_ieee39_interp_60
+python run_models_corrected.py --data ieee39  --niters 30 --extrap True --alias corrected_ieee39_extrap_60
+
+# Each of the 4 baselines, same 3 datasets x 2 tasks (24 runs total)
+python run_models_odernn.py    --data <spring|charged|ieee39> [--extrap True] --niters 30 --alias <name>
+python run_models_latentode.py --data <spring|charged|ieee39> [--extrap True] --niters 30 --alias <name>
+python run_models_edgegnn.py   --data <spring|charged|ieee39> [--extrap True] --niters 30 --alias <name>
+python run_models_rnnnri.py    --data <spring|charged|ieee39> [--extrap True] --niters 30 --alias <name>
+```

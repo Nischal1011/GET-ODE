@@ -56,6 +56,8 @@ parser.add_argument('--dataset-dir', type=str, default=None, help='Override data
 parser.add_argument('--lambda-init', type=float, default=5.0, help='Initial value of the transport decay rate lambda in K(dt)=exp(-lambda*dt)')
 parser.add_argument('--learnable-lambda', type=lambda s: s.lower() != 'false', default=True, help='Whether lambda is a learnable parameter (True/False)')
 parser.add_argument('--nonadj-floor', type=float, default=0.0, help='Baseline transport weight for non-adjacent (A_ij=0) pairs, instead of hard-zeroing them. 0 recovers the original hard-masked behavior.')
+parser.add_argument('--ablation', type=str, default='none', choices=['none', 'hardmask', 'constant', 'shuffled'],
+                    help='Ablation variant of the transport mechanism, see lib/attention_transport.py docstring.')
 
 
 args = parser.parse_args()
