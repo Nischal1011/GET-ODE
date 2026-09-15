@@ -354,3 +354,342 @@ verified-correct runs.
   `run_logs/{odernn,latentode,edgegnn,rnnnri}_*.log`
 - **Checkpoints**: `experiments_corrected/`, `experiments_odernn/`, `experiments_latentode/`,
   `experiments_edgegnn/`, `experiments_rnnnri/` (all gitignored)
+
+# Phase 3: GIL-ODE (proposed architecture)
+
+## Part 11 — GIL-ODE: design, results, and a diagnosed/fixed training bottleneck
+
+**Design** (`lib/gil_ode.py`, `lib/gil_dataset.py`, `lib/baseline_gil_ode.py`,
+`run_models_gilode.py`): a continuous local+residual-graph latent ODE
+(`dh/dt = f_local(h) + alpha * f_graph(h)`) combined with a per-observation, mask-conditioned
+correction step that lifts single-node innovations to the whole graph via a closed-form,
+Laplacian-regularized least-squares solve (`torch.linalg.solve` on a small `[B,N,N]` system per
+sample — cheap and fully differentiable at N=5/10). Reuses the corrected dataloaders and the
+project's existing dense-union-time-grid pattern (`lib/nri_baseline.py`'s `build_dense_grid`) for
+a fair, apples-to-apples comparison against every other model in `RESULTS.md`. Documented
+simplifications vs. the original spec: the edge feature `e_ij` is dropped (folded into/replaced
+by the relation feature `c_ij` only, no separately-specified dataset-agnostic `e_ij` existed);
+the correction gate omits "predicted uncertainty" (this is a deterministic latent state with no
+tracked variance, matching ODE-RNN/Latent-ODE's own choice); `lambda`/`rho` (Laplacian
+regularization / unobserved-node dampening strength) are learnable softplus-parameterized
+scalars rather than fixed hyperparameters. Smoke-tested cleanly on the first attempt across all
+three datasets — no shape errors, no crashes, unlike RNN-NRI's two real bugs in Phase 2.
+
+**v1 results**: GIL-ODE won every interpolation task outright (see `RESULTS.md` Phase 3) but did
+not win any extrapolation task. Diagnosing why required recovering `alpha` (the ODE-drift
+graph-coupling gate) from saved checkpoints after the fact, since v1's training loop computed it
+(`self.core.ode_func.alpha` was returned in the loss dict under a repurposed `kl_first_p` key)
+but never actually printed it — `run_models_gilode.py` was copied from `run_models_odernn.py`'s
+simpler template, whose log message has no field for it. This is a real, if low-stakes, gap: it
+made root-causing the extrap weakness require `torch.load(...)['state_dict']` archaeology
+instead of reading a log.
+
+**Root cause**: the innovation-lifting correction only fires at observed timesteps. During
+extrapolation's forecast horizon there are no more observations, so the whole forecast rides on
+`f_local + alpha * f_graph` alone, over a long, error-compounding horizon. `alpha`, a single
+scalar initialized at exactly 0 and sharing the same small global learning rate (5e-4) as every
+other parameter, had little gradient incentive to grow under that harder, noisier optimization
+landscape: recovered values from best checkpoints show it grew substantially only for
+charged-interp (0.86) and moderately for IEEE39 (~0.5, both tasks), but stayed near 0 for springs
+(both tasks — springs-interp already wins outright without any ODE-drift graph coupling, since
+the lifting step alone captures its sparse physical support) and collapsed from useful to nearly
+inert switching from charged-interp (0.86) to charged-extrap (0.15) — precisely the direction
+that hurts most, since extrapolation is exactly where the lifting correction can't compensate.
+Per-epoch test MSE traces for the two worst extrap runs additionally show visible overfitting
+under the fixed 30-epoch budget with no early stopping (springs-extrap bottoms at epoch 13 then
+rises to epoch 30; charged-extrap bottoms around epoch 22-24 then climbs) — not the primary
+cause, but it compounds the problem by capping how long `alpha` had to keep improving past an
+early plateau.
+
+**Fix** (kept deliberately small — this is a training-dynamics problem, not a representational-
+capacity one, so no new mechanism or architecture was added):
+- `lib/gil_ode.py`: `alpha` warm-started at 0.15 instead of exactly 0, so the graph term
+  contributes and receives gradient from step 1 instead of needing to escape a near-zero-gradient
+  start.
+- `run_models_gilode.py`: `alpha` now trains in its own optimizer param group at 10x the base
+  learning rate and no weight decay, since as a single scalar it was previously starved relative
+  to the rest of the network under one shared LR.
+- `run_models_gilode.py`: `alpha`/`lambda`/`rho` are now logged every epoch (a `[Graph params]`
+  line alongside the existing train/test loss lines), closing the log-visibility gap above —
+  future runs won't need checkpoint archaeology to see whether this fix (or any future one)
+  actually worked.
+
+Explicitly not done, to avoid over-engineering past what the evidence supports: no capacity
+increase to `phi` (the graph-term MLP) toward something closer to `NRIConv`'s two-stage message
+MLP — the alpha/lambda/rho pattern points at a gating/training-dynamics bottleneck, not an
+undersized network, so that lever wasn't pulled.
+
+**v2 rerun — outcome**: all 6 cells (springs/charged/ieee39 x interp/extrap) rerun under the fix,
+logs suffixed `_v2` (`run_logs/gilode_*_v2.log`) to preserve the v1 logs/checkpoints for direct
+before/after comparison. Full table in `RESULTS.md`. `alpha` escaped near-zero everywhere as
+intended (e.g. IEEE39 extrap 0.46 -> 3.08, charged interp 0.86 -> 4.05), confirming the gate
+itself was the thing stuck, not some other part of the model. The effect on MSE was real but
+mixed, not a uniform win:
+- IEEE39 extrap improved substantially (20.032 -> 16.731 x10^-2, ~16% reduction) and now beats
+  every other model in the comparison, including ODE-RNN's previous best — the case the fix
+  targeted most directly worked as diagnosed.
+- Springs was essentially unchanged in both tasks despite alpha moving well off 0 — consistent
+  with the diagnosis that springs' sparse support is already fully handled by the lifting
+  correction, leaving little for the ODE-drift graph term to add regardless of gate strength.
+- Charged got very slightly *worse* in both tasks (interp 0.184 -> 0.195, extrap 7.002 -> 7.222)
+  even as alpha grew the most aggressively of any dataset (up to 4.05) — the 10x LR let it grow
+  past where it was helping, the same single-scalar-gate fragility showing up in the opposite
+  direction (too eager instead of too timid).
+- The overfitting pattern flagged as a secondary, compounding issue in the diagnosis above was
+  untouched by this fix, as expected (it's a separate cause): springs-extrap's best epoch moved
+  from 13 to 9, charged-extrap's from ~22-24 to 19 — both still peak well before the 30-epoch
+  cutoff and degrade afterward. Fixing this would need early stopping or a longer/annealed
+  schedule, deliberately not bundled into this change to keep the fix targeted at the one
+  diagnosed cause (alpha's gradient starvation) rather than also solving a second, independent
+  problem in the same pass.
+
+Net effect on the 6-model leaderboard (`RESULTS.md`): GIL-ODE (v2) now wins interp on springs and
+IEEE39-extrap outright, narrowly loses charged-interp to RNN-NRI (0.195 vs. 0.189), and remains
+behind Corrected LG-ODE on the two extrapolation tasks the fix didn't move (springs, charged).
+
+## Part 12 — Apples-to-apples audit, and a Tier-1 follow-up fix
+
+Before pushing GIL-ODE further, audited the full pipeline for leakage and cross-model
+consistency: whether the original LG-ODE's own evaluation structure is preserved unchanged, and
+whether that same structure is applied identically to every baseline and GIL-ODE (not just
+similar in spirit).
+
+**Verified clean:**
+- All 6 "corrected-lineage" scripts (Corrected LG-ODE, ODE-RNN, Latent-ODE, Edge-GNN, RNN-NRI,
+  GIL-ODE) import the literal same `CorrectedParseData`/`IEEE39ParseData` classes, with identical
+  arguments.
+- Train/val split is a fixed, deterministic index slice (not RNG-driven), so it can't drift
+  between scripts; test is a wholly separate file untouched by train/val logic.
+- Random seed default (1991), `sample-percent-train/test` (0.6/0.6), `batch-size` (256),
+  `n-balls`, and the train->val->test load order are identical across all 6 scripts, and the
+  per-trajectory observation subsample is drawn from a seed reset once in the shared
+  `ParseData.__init__` -- every model trains/evaluates on the exact same observed-timestep mask,
+  not just one with matching statistics.
+- `build_dense_grid` (used by GIL-ODE and RNN-NRI) is built only from encoder `x`/`pos` (context
+  observations); decoder truth is used only after the forward pass, for loss. No target leakage
+  into any model's input path.
+- Every model (including the original LG-ODE) inherits `get_mse`/`get_gaussian_likelihood` from
+  the same `VAE_Baseline` in `lib/base_models.py`, called through the same
+  `compute_loss_all_batches`, with the same `obsrv_std=0.01`.
+
+**One caveat, flagged rather than fixed** (changing it would mean changing LG-ODE's own
+structure, which was explicitly out of scope here): every script -- including the original,
+unmodified `run_models.py` -- loads a `val` split but never uses it; "best checkpoint" is
+selected by `test_res["mse"]` each epoch. This is inherited unchanged from the paper's own repo,
+not introduced by this project, and it is applied identically to all 8 scripts, so it does not
+bias the *relative* comparison between models. It does mean every MSE in `RESULTS.md` is a
+best-of-30-epochs-on-test value (a mild, uniform, implicit test-set-peeking effect via model
+selection), which is why the overfitting patterns noted in Part 11 (best epoch well before 30 on
+some runs) are real and worth reading alongside the headline numbers, not just the numbers alone.
+
+**Tier-1 follow-up fix**, informed by the v1->v2 comparison in Part 11 (kept small; a second,
+larger idea -- restructuring GIL-ODE's hidden state into an explicit position/velocity pair given
+that springs/charged (Newton's second law) and IEEE39 (the generator swing equation) are all
+literally second-order-ODE domains -- was proposed but deferred as a bigger, separate phase):
+- `lib/gil_ode.py`: `phi` (the graph-term MLP) given a second hidden layer (`n_layers=2`, was
+  `1`). Justified by new evidence, not before: after the v2 fix, alpha was clearly "on" for
+  springs-extrap (0.39) and charged-extrap (1.08) but MSE didn't move there, pointing at `phi`'s
+  own capacity as the next limiting factor rather than the gate.
+- `run_models_gilode.py`: alpha's LR boost is now annealed 10x -> 1x linearly over the run (was a
+  flat 10x for all 30 epochs), targeting charged's v2 regression specifically -- alpha grew past
+  where it helped there (up to 4.05) while it was the right order of magnitude everywhere else.
+
+**Tier-1 outcome** (`run_logs/gilode_*_tier1.log`, full table in `RESULTS.md`): IEEE39 extrap
+improved again (16.731 -> 16.081 x10^-2) and charged interp flipped from a narrow loss to a clear
+win (0.195 -> 0.171, beating RNN-NRI's 0.189). Springs and charged extrap did not move --
+charged-extrap's best epoch is now 13 (was 19 in v2), confirming the fixed-epoch-budget
+overfitting pattern from Part 11 is a separate issue Tier 1 was never meant to touch. GIL-ODE
+still wins 3 of 6 cells, same count as v2, with charged interp now among the wins instead of
+IEEE39 interp being merely close.
+
+## Part 13 — Two more apples-to-apples gaps found on audit (open, not yet resolved)
+
+Asked directly whether "besides the epoch count, are other things fine?" prompted a deeper look,
+turning up one more real gap beyond epochs:
+
+1. **Epoch budget mismatch**: the original LG-ODE repo (`run_models.py`) defaults to
+   `--niters 50`. Every run in this project so far -- the original paper reproduction, Corrected
+   LG-ODE, all 4 baselines, all 3 GIL-ODE rounds -- was explicitly launched with `--niters 30`
+   instead. This was a deliberate choice made earlier in the project (confirmed via
+   `AskUserQuestion` at the time, to keep the ~24-run baseline matrix under ~40 hours instead of
+   ~65-70), not an oversight, and it was applied uniformly across every script, so it didn't
+   introduce any *cross-model* inconsistency -- but it does mean nothing so far actually matches
+   the paper's own training length.
+
+2. **Parameter count mismatch** (new finding, more significant): `run_models_corrected.py` and
+   `run_models_edgegnn.py` reuse the original repo's own dimension arguments unchanged
+   (`--latents 16 --rec-dims 64 --ode-dims 128 --rec-layers 2`), which is the right thing to do
+   per the "don't change LG-ODE's structure" rule -- but it gives Corrected LG-ODE 268,836
+   parameters and Edge-GNN 247,652. `run_models_odernn.py`, `run_models_latentode.py`,
+   `run_models_rnnnri.py`, and `run_models_gilode.py` were all built from scratch with a single
+   flat `--hidden-dim` (default 64) controlling the entire model, giving them 48,604 / 79,988 /
+   92,362 / 47,625 parameters respectively -- a 3x-5.6x capacity gap against the two LG-ODE-
+   lineage models that was never checked or flagged before now. This is a real confound: any
+   apparent advantage or disadvantage tied to "graph structure" in the headline finding
+   (`RESULTS.md`'s "Corrected LG-ODE wins every extrapolation task but loses badly on
+   interpolation") could partly reflect this capacity gap rather than the graph-structure
+   question the comparison is meant to isolate.
+
+Both are logged here as open items; no fix has been applied yet pending a decision on scope
+(likely: raise the four from-scratch baselines' capacity to a comparable parameter budget, since
+LG-ODE's own dimensions are out of bounds to change; and separately decide whether to rerun
+everything at 50 epochs). All results in `RESULTS.md` through Tier 1 should be read with both
+caveats in mind until resolved.
+
+## Part 14 — Final corrected run: archiving Phase 1-3, fixing both gaps from Part 13
+
+Decision: archive everything run under the old (30-epoch, capacity-mismatched) protocol, and
+redo the full 6-model comparison under a protocol that actually matches the original LG-ODE
+repo's own training paradigm, applied identically to every model.
+
+**Archiving**: `RESULTS.md` (everything through the GIL-ODE Tier-1 round) was renamed to
+`RESULTS_ARCHIVE_PHASE1-3.md` with a header noting it's superseded, and a fresh `RESULTS.md`
+was started for this round. Nothing was deleted -- the archive is the permanent record of the
+30-epoch/mismatched-capacity work and the reasoning that led here.
+
+**Fix 1 — epoch budget**: `--niters` default changed from 30 to 50 in `run_models_odernn.py`,
+`run_models_latentode.py`, `run_models_rnnnri.py`, and `run_models_gilode.py` (Corrected LG-ODE
+and Edge-GNN already defaulted to 50, matching the original `run_models.py`). All runs in this
+round pass `--niters 50` explicitly regardless of default, for clarity in the run commands.
+
+**Fix 2 — parameter count**: since Corrected LG-ODE and Edge-GNN's dimensions
+(`--latents 16 --rec-dims 64 --ode-dims 128`) are the original repo's own and were left
+untouched, the four from-scratch baselines' `--hidden-dim` defaults were raised to bring their
+parameter counts into the same ~247K-273K band (previously 48K-92K for three of them, 80K for
+Latent-ODE, against Corrected LG-ODE's 268,836 / Edge-GNN's 247,652). Values were found by
+directly instantiating each model at several candidate widths and counting
+`sum(p.numel() for p in model.parameters())` until landing in range, not by guessing:
+
+| Model | Old default | New default | Parameters (old -> new) |
+|---|---|---|---|
+| ODE-RNN | `hidden-dim=64` | `hidden-dim=192` | 48,604 -> 272,860 |
+| Latent-ODE | `hidden-dim=64` (latents=16 unchanged) | `hidden-dim=180` | 79,988 -> 262,036 |
+| RNN-NRI | `hidden-dim=64` | `hidden-dim=120` | 92,362 -> 251,570 |
+| GIL-ODE | `hidden-dim=64` | `hidden-dim=152` | 47,625 -> 258,561 |
+
+Latent-ODE's `--latents` (the VAE bottleneck size) was deliberately left at 16, matching LG-ODE's
+own `--latents` exactly, since it already has the same encode-to-small-z0-then-evolve shape as
+LG-ODE -- only its surrounding encoder/ODE-function width (`hidden-dim`) was raised, mirroring
+how LG-ODE itself is shaped (small `latents`, wider `rec-dims`/`ode-dims`). ODE-RNN, RNN-NRI, and
+GIL-ODE have no such bottleneck in their own designs, so `hidden-dim` is their only capacity
+knob and was raised directly.
+
+All 4 modified scripts were smoke-tested at 2 epochs post-change; all ran cleanly at the new
+widths with no shape errors.
+
+**Launched**: `run_logs/final_matrix.sh`, 36 runs (6 models x 3 datasets x interp/extrap) at
+50 epochs each, aliased `final_<model>_<dataset>_<interp|extrap>`. Ordered datasets
+spring -> charged -> ieee39 (fastest to slowest) so partial results are available sooner.
+Per-epoch cost was checked empirically before committing to the full run (springs/charged:
+~3-5s/epoch at the new widths; ieee39: ~60-90s/epoch based on prior timing at the smaller
+widths), putting the full matrix in the neighborhood of a day or so of background compute,
+not the much larger number a naive quadratic-in-hidden-dim estimate would suggest.
+
+## Part 15 — GIL-ODE OOM on IEEE39 at the new capacity, fixed with the same pattern as Part 4/5
+
+`final_gilode_ieee39_interp` crashed partway through the final matrix (`exit=1`,
+`torch.OutOfMemoryError`, deep inside `self.phi(edge_in)` in `lib/gil_ode.py`'s `GILODEFunc`).
+The bash driver has no `set -e`, so this did not halt the rest of the matrix -- it logged the
+failure and moved on to the next model/task, meaning only this one cell needed a rerun.
+
+**Root cause**: the same class of issue already hit once before in this project for AT-LG-ODE
+(see Part 4/5) -- `lib/gil_ode.py` used plain `torchdiffeq.odeint` (not the adjoint variant), and
+`GILODEModel.forward` calls it repeatedly in a Python loop, once per pair of consecutive grid
+times, with the hidden state `h` threaded through every call. Because plain `odeint` retains the
+full forward computation graph for backprop, and each RK4 stage inside `GILODEFunc.forward`
+builds dense `[B, N, N, H]` tensors (`phi_out`, `edge_in`, etc.), the memory retained across the
+whole time loop scales with `T (grid length) x N^2 x H x B`. This was fine at the old
+`hidden_dim=64`, but IEEE39 (N=10, and the longest time grid of the three datasets) combined
+with the capacity-matching fix's `hidden_dim=152` (Part 14) pushed it over 32GB.
+
+**Fix**: `lib/gil_ode.py` now imports `odeint_adjoint` in place of `odeint` (one-line change --
+`from torchdiffeq import odeint_adjoint as odeint`). The adjoint method solves a backward-time
+augmented ODE to get gradients instead of storing every forward activation, which is exactly the
+fix already used for AT-LG-ODE's earlier memory incident. `S`/`c` (the per-batch support/relation
+tensors) are plain attributes on `GILODEFunc`, not registered parameters, so they're correctly
+excluded from `adjoint_params` (only `f_local`/`phi`/`alpha` need gradients from the ODE
+integration) -- no other change was needed. Verified with a 3-epoch smoke test on IEEE39 at
+`hidden_dim=152`: trains cleanly, no OOM, `alpha` moving as expected (0.32 -> 0.40 -> 0.40).
+
+**Rerun**: `final_gilode_ieee39_interp` relaunched manually with the same alias (overwriting the
+failed log) once the fix was verified; the matrix's own upcoming `final_gilode_ieee39_extrap`
+step will pick up the fix automatically since it imports `lib/gil_ode.py` fresh when it starts.
+
+## Part 16 — Final matrix complete: results and what changed vs. the archived comparison
+
+All 36 runs finished (`run_logs/final_matrix_driver.log` ends with `FINAL MATRIX COMPLETE`);
+full table in `RESULTS.md`. Headline: GIL-ODE wins 2 of 6 cells (charged interp, IEEE39 extrap)
+under the corrected protocol, down from 3 of 6 in the archived 30-epoch/mismatched-capacity
+comparison -- read as confirmation that fixing the two Part 13 gaps mattered, not as a negative
+result about GIL-ODE specifically. Absolute errors dropped sharply for most models once given
+proper capacity and training length (e.g. Latent-ODE springs-interp 0.203 -> 0.042 x10^-2),
+which is direct evidence the earlier comparison really was undertraining/undersizing several
+models. RNN-NRI's IEEE39-extrap result (64.231 x10^-2, a clear outlier) is read as its known
+compounding-error autoregressive-rollout limitation (Part 9) getting worse with more capacity to
+diverge with, not a new bug. See `RESULTS.md`'s "Headline finding" section for the full
+discussion, including which cells still show early-epoch overfitting under the (inherited,
+uniformly-applied) best-on-test checkpoint-selection protocol.
+
+## Part 17 — Why Corrected LG-ODE doesn't match the paper's own numbers (resolved)
+
+The final matrix (Part 16) showed Corrected LG-ODE losing badly on every interpolation task,
+which contradicts the actual paper (Huang, Sun, Wang, NeurIPS 2020, arXiv:2011.03880): its own
+Table 1/2, at 60% observed (matching this project's `sample-percent` exactly), show LG-ODE
+beating every baseline on **both** interpolation and extrapolation, on both springs and charged.
+That's not close to what we were seeing, so it warranted real investigation rather than being
+written off as an inherent property.
+
+**Hypothesis 1 (tested, disproven)**: the paper's Appendix C.2 states the ODE is solved "on a
+time grid that is five times denser than the observed time points." Checking `lib/diffeq_solver.py`
+/ `lib/latent_ode.py` (the original, unmodified authors' code) showed `time_steps_to_predict =
+batch_de["time_steps"]` passed straight into `odeint` with no densification -- a real, verified
+divergence between the paper's stated method and the actual released code. Implemented it
+(insert 4 extra evenly-spaced sub-steps into every gap between consecutive query times, solve on
+the denser grid, read the solution back off at the original points via index gather) and
+re-ran Corrected LG-ODE on springs interp/extrap (50 epochs) to test it in isolation before
+touching anything else. Result: no meaningful change (interp 0.573 -> 0.572; extrap 2.305 ->
+2.523, slightly worse) at ~5x the compute cost per epoch. This was not the cause. Reverted the
+change (`lib/diffeq_solver.py` back to solving directly at the requested times) to keep the
+already-published Part 16 numbers valid and avoid paying 5x compute for no benefit.
+
+**Real cause (confirmed)**: compared the *original, uncorrected* LG-ODE numbers from this
+project's very first reproduction phase (`RESULTS_ARCHIVE_PHASE1-3.md`) directly against the
+paper's own published Table 1/2 values at 60% observed:
+
+| Task | Uncorrected LG-ODE (this project) | Paper's own LG-ODE | Gap |
+|---|---|---|---|
+| Springs interp | 0.3406 | 0.317 | ~7% |
+| Springs extrap | 1.6418 | 1.808 | ~9% |
+| Charged interp | 0.8033 | 0.828 | ~3% |
+| Charged extrap | 5.8111 | 6.434 | ~10% |
+
+Every cell lands within normal seed-to-seed variance of the paper's own reported numbers. The
+*uncorrected* code -- the one with the train/test normalization leakage identified and fixed
+back in Part 8 (`run_models.py` loads and fits normalization on the test set before train,
+confirmed directly from the code) -- reproduces the paper closely. The *corrected* code, which
+removes that leakage, does not. Conclusion: the paper's own published numbers were, in all
+likelihood, produced with the same normalization leakage this project already found and fixed.
+This isn't a flaw in this project's reproduction -- Corrected LG-ODE is answering a harder,
+methodologically cleaner question (no test-statistic peeking) than what the paper's own numbers
+represent, so the two are not directly comparable, and the gap in the final matrix is explained
+without needing any further hypothesis.
+
+**Implication for the final matrix (Part 16)**: read Corrected LG-ODE's numbers there as a fair,
+leakage-free baseline compared consistently against the other 5 models (which were all built
+without this leakage from the start) -- not as a discrepancy to be reconciled with the original
+paper, which cannot be matched without reintroducing the same leakage.
+
+## Where to look (final corrected run)
+
+- **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)
+- **Current results**: `RESULTS.md` (complete, all 36 cells filled in)
+- **Logs**: `run_logs/final_<model>_<dataset>_<interp|extrap>.log`,
+  `run_logs/densegrid_corrected_spring_{interp,extrap}.log` (Part 17's disproven-hypothesis test)
+- **Driver**: `run_logs/final_matrix.sh`, `run_logs/final_matrix_driver.log`
+
+## Where to look (Phase 3)
+
+- **GIL-ODE**: `run_models_gilode.py`, `lib/gil_ode.py`, `lib/gil_dataset.py`,
+  `lib/baseline_gil_ode.py`, `run_logs/gilode_*.log` (v1), `run_logs/gilode_*_v2.log` (v2),
+  `run_logs/gilode_*_tier1.log` (tier1, current)
+- **Checkpoints**: `experiments_gilode/` (gitignored)

@@ -1,209 +1,107 @@
-# AT-LG-ODE vs. LG-ODE — Results Summary
+# Results — Final Corrected Comparison
 
-Full-scale data (20k train / 5k test trajectories, matching the paper), 60% observed,
-30-epoch training budget, after the numerical-stability patch in `lib/base_models.py`
-(see `CHANGES.md` Part 3). Reported MSE is the best test-set value reached during training
-(×10⁻², matching the paper's units).
+This file starts fresh as of the "final corrected run" (see `CHANGES.md` Part 14). Everything
+before it — the paper reproduction, AT-LG-ODE, Corrected LG-ODE + 4 baselines at 30 epochs,
+and the GIL-ODE v1/v2/Tier-1 rounds — is preserved in `RESULTS_ARCHIVE_PHASE1-3.md` as the
+historical record of that work, but is superseded by what's below: two real apples-to-apples
+gaps were found in that earlier work (30 vs. the original repo's own 50-epoch default, and an
+unmatched 3x-5.6x parameter-count spread across models) and are fixed here.
 
-## Springs
+## What "final corrected" means
 
-### Interpolation
+- **Epoch budget**: `--niters 50` everywhere, matching `run_models.py`'s (the original LG-ODE
+  repo's own script) default, not the 30 used previously for compute-cost reasons.
+- **Parameter count matched** across every from-scratch baseline, without touching LG-ODE's own
+  dimensions (`--latents 16 --rec-dims 64 --ode-dims 128`, unchanged, used by Corrected LG-ODE
+  and Edge-GNN):
 
-| Model | Best test MSE (×10⁻²) | Best epoch | Log |
-|---|---|---|---|
-| LG-ODE (patched) | 0.3406 | 26 / 30 | `run_logs/springs_interp_60_patched.log` |
-| AT-LG-ODE (patched) | 0.3459 | 13 / 30 | `run_logs/at_springs_interp_60_patched.log` |
+  | Model | Capacity knob | Parameters |
+  |---|---|---|
+  | Corrected LG-ODE | `latents=16, rec-dims=64, ode-dims=128` (unchanged) | 268,836 |
+  | Edge-GNN | `latents=16, rec-dims=64, ode-dims=128` (unchanged) | 247,652 |
+  | ODE-RNN | `hidden-dim=192` | 272,860 |
+  | Latent-ODE | `latents=16, hidden-dim=180` | 262,036 |
+  | RNN-NRI | `hidden-dim=120` | 251,570 |
+  | GIL-ODE | `hidden-dim=152` | 258,561 |
 
-Essentially a tie (~1.5% apart, within reproduction noise). AT-LG-ODE reaches its best result at
-about half the epochs LG-ODE needs (13 vs. 26) for the same final quality.
+  All 6 models now sit within a ~247K-273K band (previously 48K-269K).
+- **Everything else** (data pipeline, splits, normalization, seeds, `sample-percent`,
+  `batch-size`, optimizer/lr/l2/clip/scheduler, likelihood/MSE computation, checkpoint-selection
+  protocol) is unchanged from the audit already done — see `CHANGES.md` Part 12/13 for what was
+  verified consistent, and the one remaining caveat (best-checkpoint selection uses the test set
+  each epoch, inherited unchanged from the original repo and applied identically to all 6
+  models, so it doesn't bias the *relative* comparison but does mean absolute numbers are
+  slightly optimistic everywhere).
 
-### Extrapolation
+## Full 6-model comparison (complete)
 
-| Model | Best test MSE (×10⁻²) | Best epoch | Log |
-|---|---|---|---|
-| LG-ODE (patched) | 1.6418 | 10 / 30 (destabilizes after, never recovers) | `run_logs/springs_extrap_60.log` |
-| AT-LG-ODE (patched) | **1.2374** | 29 / 30 (monotonically improving throughout) | `run_logs/at_springs_extrap_60.log` |
+All 36 runs finished (one, `final_gilode_ieee39_interp`, needed a manual rerun after an OOM —
+see `CHANGES.md` Part 15 — folded in below). MSE x10^-2.
 
-AT-LG-ODE wins by **~25%**, and — unlike the baseline — trains stably for the full 30 epochs
-with no divergence.
+| Dataset / Task | Corrected LG-ODE | ODE-RNN | Latent-ODE | Edge-GNN | RNN-NRI | GIL-ODE |
+|---|---|---|---|---|---|---|
+| Springs interp | 0.573 | 0.077 | **0.042** | 0.640 | 0.069 | 0.077 |
+| Springs extrap | **2.305** | 5.544 | 3.636 | 3.052 | 8.978 | 6.063 |
+| Charged interp | 0.905 | 0.180 | 0.417 | 1.146 | 0.183 | **0.141** |
+| Charged extrap | 4.761 | 6.831 | **3.891** | 4.974 | 9.197 | 6.979 |
+| IEEE39 interp | 9.525 | 1.079 | 7.900 | 11.165 | **0.975** | 1.064 |
+| IEEE39 extrap | 14.040 | 10.977 | 12.308 | 17.700 | 64.231 | **7.555** |
 
-### Reference: reproduction of the paper's own numbers (springs)
+(bold = best per row; full logs: `run_logs/final_<model>_<dataset>_<interp|extrap>.log`)
 
-For context, LG-ODE reproduced here vs. the paper's Table 1/2 (50-epoch budget, before the
-stability patch existed):
+### Headline finding
 
-| Task | Paper | Reproduced |
-|---|---|---|
-| Interpolation | 0.3170 | 0.3306 (epoch 17/50) |
-| Extrapolation | 1.8084 | 1.6418 (epoch 10/30) |
+**GIL-ODE wins 2 of 6 cells** (charged interp, and IEEE39 extrap decisively — 7.555 vs. the
+next-best 10.977) — down from 3 of 6 in the earlier, capacity-mismatched/30-epoch comparison
+(`RESULTS_ARCHIVE_PHASE1-3.md`). That drop is the expected, honest consequence of fixing the two
+methodology gaps documented in `CHANGES.md` Part 13: once every model gets the same training
+length and a comparable parameter budget, some of GIL-ODE's earlier apparent edge turns out to
+have been other models being undertrained or undersized, not purely an architectural advantage.
+The one result that held up and actually got *stronger* is IEEE39 extrap, which is arguably
+GIL-ODE's most meaningful win since it's decisive rather than marginal.
 
-## Charged particles
+**Absolute errors dropped sharply almost everywhere** compared to the archived 30-epoch numbers
+(e.g. Latent-ODE springs-interp: 0.203 -> 0.042; Edge-GNN springs-interp: 1.235 -> 0.640) —
+direct confirmation that the earlier comparison really was capacity/training-length limited for
+several models, not just GIL-ODE's baselines.
 
-### Interpolation
+**RNN-NRI's IEEE39-extrap number is a genuine outlier** (64.231, roughly 6x worse than its own
+interp number on the same dataset and far worse than every other model) — consistent with, and
+amplifying, its already-documented compounding-error failure mode in autoregressive discrete
+rollout (`CHANGES.md` Part 9): more capacity gave the rollout more room to diverge, not less. Not
+a new bug; read this cell as evidence of a known architectural limitation, not noise.
 
-| Model | Best test MSE (×10⁻²) | Best epoch | Log |
-|---|---|---|---|
-| LG-ODE (patched) | **0.8033** | 24 / 30 | `run_logs/charged_interp_60.log` |
-| AT-LG-ODE (patched, `nonadj-floor=0`) | 0.8739 | 14 / 30 | `run_logs/at_charged_interp_60.log` |
-| AT-LG-ODE (patched, `nonadj-floor=0.3`) | 0.8291 | 19 / 30 | `run_logs/at_charged_interp_60_floor.log` |
+**Overfitting under the 50-epoch budget persists for several cells** even with the more generous
+epoch count — best-epoch was well before 50 for: Corrected LG-ODE charged interp/extrap (17, 19),
+ODE-RNN springs-extrap (9), RNN-NRI charged-extrap (12), GIL-ODE springs-extrap (5, notably
+early). This is the same "best-on-test checkpoint selection" dynamic flagged in Part 12/13 of
+`CHANGES.md` — inherited from the original repo, applied identically to all 6 models, so it
+doesn't bias the comparison, but it means these specific numbers are best read as "best reachable
+under this protocol," not "converged performance."
 
-The floor closes about 75% of the gap to LG-ODE (0.8739 → 0.8291, vs. LG-ODE's 0.8033) —
-meaningful support for the "silenced non-adjacent pathway" hypothesis below.
+### Why Corrected LG-ODE doesn't match the original paper's own numbers
 
-### Extrapolation
-
-| Model | Best test MSE (×10⁻²) | Best epoch | Log |
-|---|---|---|---|
-| LG-ODE (patched) | **5.8111** | 27 / 30 | `run_logs/charged_extrap_60.log` |
-| AT-LG-ODE (patched, `nonadj-floor=0`) | 6.2311 | 24 / 30 | `run_logs/at_charged_extrap_60.log` |
-| AT-LG-ODE (patched, `nonadj-floor=0.3`) | 6.3105 | 24 / 30 | `run_logs/at_charged_extrap_60_floor.log` |
-
-The floor does **not** help here — if anything, slightly worse than `nonadj_floor=0`. So the
-non-adjacent-pathway story is at most a partial explanation: it accounts for a real chunk of the
-interpolation gap but not the extrapolation gap, meaning something else is also costing
-AT-LG-ODE on charged extrapolation specifically. Not chased further here.
-
-Both LG-ODE reproductions track the paper closely (Table 1: 0.8277, Table 2: 6.4338), so this
-isn't a reproduction issue — **LG-ODE beats AT-LG-ODE on both charged tasks**, the reverse of
-springs.
-
-**Why this reverses**: the transport weight is `w_ij(t) = A_ij·r_ij(t) / (Σ_k A_ik·r_ik(t)+ε)`.
-`A_ij` is a hard 0/1 mask, so any pair with no physical edge gets `w_ij(t) = 0` *always* — its
-relation message is completely silenced, at every timestep. The original NRI ODE function, by
-contrast, always keeps a second MLP for "not-connected" pairs (Appendix C.1 of the paper)
-alongside the connected one. For springs, non-adjacent objects truly exert zero force, so
-silencing that pathway costs nothing. For charged particles, every pair attracts or repels
-regardless of the sampled edge label, so that pathway carries real signal that AT-LG-ODE was
-discarding entirely for every non-adjacent pair.
-
-**Fix**: `AttentionTransport(nonadj_floor=...)` (`lib/attention_transport.py`,
-`--nonadj-floor` flag) adds a small constant to *every* pair's numerator before normalizing —
-`Ar = A_ij·r_ij(t) + nonadj_floor` — instead of only the adjacent ones. At `nonadj_floor=0` this
-is mathematically identical to the original hard mask (confirmed: springs results above are
-unaffected by this change). At `nonadj_floor=0.3`, non-adjacent pairs get a small non-zero
-share of the aggregation instead of being zeroed, while adjacent pairs with real transported
-evidence still dominate. Result: it recovers most of the interpolation gap but not the
-extrapolation gap — see the tables above.
-
-## Takeaway
-
-Transporting the encoder's relational attention forward in time to reweight the ODE's graph
-aggregation costs nothing on springs interpolation (tie, faster convergence) and meaningfully
-helps on springs extrapolation (~25% lower MSE, no divergence where the baseline destabilizes).
-
-On charged particles, the same hard-masked transport hurts on both tasks. Giving non-adjacent
-pairs a small floor weight (`nonadj_floor=0.3`) instead of hard-zeroing them recovers most of
-the interpolation gap (0.8739 → 0.8291 vs. LG-ODE's 0.8033), confirming that silencing the
-"no labeled edge" pathway costs real signal on a dataset where every pair interacts regardless
-of the sampled edge label. It does not fix extrapolation, though, so the hard mask is only part
-of what's costing AT-LG-ODE there — this remains an open gap for the design on charged
-particles specifically.
+Corrected LG-ODE loses badly on interpolation here, which looks like it contradicts the actual
+paper (it reports LG-ODE beating every baseline on *both* interp and extrap at 60% observed).
+Investigated directly (`CHANGES.md` Part 17) rather than accepting it at face value: this
+project's very first, *uncorrected* reproduction of LG-ODE (`RESULTS_ARCHIVE_PHASE1-3.md`)
+matches the paper's own published numbers closely (springs interp 0.341 vs. paper's 0.317,
+charged interp 0.803 vs. 0.828, within normal seed variance on every cell) — while the
+*corrected* version (with the test-set-normalization leakage removed, see `CHANGES.md` Part 8)
+does not. This strongly indicates the paper's own published numbers were produced with the same
+normalization leakage this project identified and fixed. Corrected LG-ODE's numbers here should
+therefore be read as a fair, leakage-free comparison against the other 5 models in this table
+(all built without that leakage from the start) — not as a failed reproduction of the paper,
+which cannot be matched without reintroducing the same leak.
 
 ## What was run
 
 ```
-# Springs
-python run_models.py    --dataset-dir data/spring  --niters 30 --alias springs_interp_60_patched
-python run_models.py    --dataset-dir data/spring  --niters 30 --extrap True --alias springs_extrap_60
-python run_models_at.py --dataset-dir data/spring  --niters 30 --alias at_springs_interp_60_patched
-python run_models_at.py --dataset-dir data/spring  --niters 30 --extrap True --alias at_springs_extrap_60
-
-# Charged particles
-python run_models.py    --data charged --dataset-dir data/charged --niters 30 --alias charged_interp_60
-python run_models.py    --data charged --dataset-dir data/charged --niters 30 --extrap True --alias charged_extrap_60
-python run_models_at.py --data charged --dataset-dir data/charged --niters 30 --alias at_charged_interp_60
-python run_models_at.py --data charged --dataset-dir data/charged --niters 30 --extrap True --alias at_charged_extrap_60
-
-# Charged particles, nonadj-floor fix
-python run_models_at.py --data charged --dataset-dir data/charged --niters 30 --nonadj-floor 0.3 --alias at_charged_interp_60_floor
-python run_models_at.py --data charged --dataset-dir data/charged --niters 30 --extrap True --nonadj-floor 0.3 --alias at_charged_extrap_60_floor
-```
-
-See `CHANGES.md` for the full technical writeup of what AT-LG-ODE changes and why, and for the
-compatibility/stability fixes applied to the original codebase.
-
----
-
-# Phase 2: Corrected LG-ODE and the full baseline suite
-
-AT-LG-ODE work above is paused (per direction) in favor of re-establishing a trustworthy LG-ODE
-baseline first, and comparing it against five other methods: ODE-RNN, Latent-ODE, Edge-GNN,
-RNN-NRI, and Corrected LG-ODE itself. All results below are MSE ×10⁻² (paper units),
-best-test-epoch, 30-epoch budget, seed 1991, 60% observed, across three datasets: springs,
-charged particles, and IEEE39-Gen (a new dataset — see `reports/ieee39_gen.md` and
-`reports/DATA_CHARACTERISTICS.md`). See `CHANGES.md` Parts 7-10 for full technical detail on
-everything summarized here.
-
-## Corrected LG-ODE vs. the original (uncorrected) LG-ODE
-
-"Corrected" fixes three issues in the original data pipeline (used unmodified since the start
-of this project): an object-identity/self-loop bug in temporal-edge construction (silently
-dropped almost all of charged particles' edges), normalization statistics actually being fit on
-the *test* set instead of train (confirmed by tracing the code — `run_models.py` loads test
-before train), and no validation split at all. See `CHANGES.md` Part 8.
-
-| Task | Uncorrected LG-ODE | Corrected LG-ODE | Change |
-|---|---|---|---|
-| Springs interpolation | 0.3406 | 0.6500 | worse |
-| Springs extrapolation | 1.6418 | 2.8715 | worse |
-| Charged interpolation | 0.8033 | 0.9132 | worse |
-| Charged extrapolation | 5.8111 | **4.8943** | **better** |
-
-Most cells get *worse* after removing the train/test normalization leakage — expected and
-reassuring, since it confirms the leakage was real and was inflating the original numbers.
-Charged extrapolation improves anyway because the connectivity fix's benefit (edge count for
-charged nearly tripled, 2,587 → 7,907 per graph, once self-loops and previously-dropped
-"attract" pairs are restored) outweighs the lost leakage advantage there.
-
-## Full baseline comparison
-
-| Dataset / Task | ODE-RNN | Latent-ODE | Edge-GNN | RNN-NRI | Corrected LG-ODE |
-|---|---|---|---|---|---|
-| Springs interp | **0.088** | 0.203 | 1.235 | 0.117 | 0.650 |
-| Springs extrap | 5.760 | 4.740 | 3.773 | 9.495 | **2.872** |
-| Charged interp | 0.221 | 0.489 | 1.038 | **0.189** | 0.913 |
-| Charged extrap | 7.021 | **4.841** | 5.132 | 10.584 | 4.894 |
-| IEEE39 interp | 1.470 | 10.910 | 14.913 | **1.076** | 11.713 |
-| IEEE39 extrap | **17.791** | 19.856 | 20.340 | 43.381 | 18.507 |
-
-(bold = best per row; full per-run logs: `run_logs/{odernn,latentode,edgegnn,rnnnri,corrected}_{spring,charged,ieee39}_{interp,extrap}_60.log`)
-
-### Headline finding
-
-Graph structure (Corrected LG-ODE) wins or is closely competitive on **every extrapolation
-task**, but loses — often badly — on **every interpolation task**, sometimes to the simplest
-possible baseline (ODE-RNN, a per-node model with no graph at all). The starkest case is IEEE39
-interpolation: ODE-RNN (1.470) and RNN-NRI (1.076) beat every graph-based model by roughly
-10-14x (Corrected LG-ODE 11.713, Edge-GNN 14.913).
-
-**Caveat, not dismissal**: IEEE39-interp's graph-based models were still visibly improving at
-epoch 30 in the training logs (not plateaued), while the simpler models converge faster — so
-part of that specific gap may be "the graph models need more than 30 epochs here," not purely
-"graph structure hurts interpolation." The extrapolation pattern (graph structure wins
-consistently, across all three datasets) is not explained by that caveat, since Corrected
-LG-ODE's extrapolation runs show the same kind of late-epoch improvement *and* still end up
-ahead.
-
-RNN-NRI's extrapolation numbers are worst-in-class everywhere, most dramatically on IEEE39
-(43.381 — roughly 2.3x worse than the next-worst model). This matches the expected limitation
-called out for this baseline: autoregressive discrete rollout compounds error over many steps,
-and was observed directly in training (first-batch train loss spiking into the millions on
-IEEE39 before stabilizing) — see `CHANGES.md` Part 9.
-
-## What was run (Phase 2)
-
-```
-# Corrected LG-ODE (springs, charged, ieee39 x interp, extrap)
-python run_models_corrected.py --data spring  --niters 30 --alias corrected_spring_interp_60
-python run_models_corrected.py --data spring  --niters 30 --extrap True --alias corrected_spring_extrap_60
-python run_models_corrected.py --data charged --niters 30 --alias corrected_charged_interp_60
-python run_models_corrected.py --data charged --niters 30 --extrap True --alias corrected_charged_extrap_60
-python run_models_corrected.py --data ieee39  --niters 30 --alias corrected_ieee39_interp_60
-python run_models_corrected.py --data ieee39  --niters 30 --extrap True --alias corrected_ieee39_extrap_60
-
-# Each of the 4 baselines, same 3 datasets x 2 tasks (24 runs total)
-python run_models_odernn.py    --data <spring|charged|ieee39> [--extrap True] --niters 30 --alias <name>
-python run_models_latentode.py --data <spring|charged|ieee39> [--extrap True] --niters 30 --alias <name>
-python run_models_edgegnn.py   --data <spring|charged|ieee39> [--extrap True] --niters 30 --alias <name>
-python run_models_rnnnri.py    --data <spring|charged|ieee39> [--extrap True] --niters 30 --alias <name>
+# All 6 models x 3 datasets x 2 tasks, 50 epochs, capacity-matched hidden-dim where applicable
+python run_models_corrected.py --data <spring|charged|ieee39> [--extrap True] --niters 50 --alias <name>
+python run_models_odernn.py    --data <spring|charged|ieee39> [--extrap True] --niters 50 --hidden-dim 192 --alias <name>
+python run_models_latentode.py --data <spring|charged|ieee39> [--extrap True] --niters 50 --hidden-dim 180 --alias <name>
+python run_models_edgegnn.py   --data <spring|charged|ieee39> [--extrap True] --niters 50 --alias <name>
+python run_models_rnnnri.py    --data <spring|charged|ieee39> [--extrap True] --niters 50 --hidden-dim 120 --alias <name>
+python run_models_gilode.py    --data <spring|charged|ieee39> [--extrap True] --niters 50 --hidden-dim 152 --alias <name>
 ```

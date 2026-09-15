@@ -1,10 +1,10 @@
 '''
-RNN-NRI baseline: RNN imputation (interpolation) followed by NRI relation inference + discrete
-rollout (extrapolation) -- see lib/nri_baseline.py / lib/baseline_rnn_nri.py for the full
-design and documented simplifications. Reuses the same corrected dataloaders as
-run_models_corrected.py for a fair comparison; the "graph" tensor loaded here is still never
-used since NRI infers relations over the complete candidate graph, not the dataset's physical
-one (per spec).
+GIL-ODE (Graph Innovation-Lifting ODE): the proposed architecture (see lib/gil_ode.py's
+docstring for the full design). Reuses the same corrected dataloaders as
+run_models_corrected.py (CorrectedParseData / IEEE39ParseData) for a fair, apples-to-apples
+comparison against Corrected LG-ODE and every baseline -- same data, splits, normalization, and
+observation masks. Unlike the other baselines, the graph tensor IS used here (to build the
+per-dataset support/relation matrices S/c, see lib/gil_dataset.py).
 '''
 import os
 import sys
@@ -15,21 +15,19 @@ from random import SystemRandom
 import torch
 import torch.optim as optim
 import lib.utils as utils
-from lib.baseline_rnn_nri import RNNNRIBaseline
+from lib.baseline_gil_ode import GILODEBaseline
 from lib.utils import compute_loss_all_batches
 
-parser = argparse.ArgumentParser('RNN-NRI baseline')
+parser = argparse.ArgumentParser('GIL-ODE')
 parser.add_argument('--n-balls', type=int, default=5)
 parser.add_argument('--niters', type=int, default=50)
 parser.add_argument('--lr', type=float, default=5e-4)
 parser.add_argument('-b', '--batch-size', type=int, default=256)
-parser.add_argument('--save', type=str, default='experiments_rnnnri/')
-parser.add_argument('--edge-types', type=int, default=2)
+parser.add_argument('--save', type=str, default='experiments_gilode/')
 parser.add_argument('--load', type=str, default=None)
 parser.add_argument('-r', '--random-seed', type=int, default=1991)
 parser.add_argument('--data', type=str, default='spring', help="spring,charged,ieee39")
-parser.add_argument('-l', '--latents', type=int, default=16)
-parser.add_argument('--hidden-dim', type=int, default=120)
+parser.add_argument('--hidden-dim', type=int, default=152)
 parser.add_argument('--extrap', type=str, default="False")
 parser.add_argument('--sample-percent-train', type=float, default=0.6)
 parser.add_argument('--sample-percent-test', type=float, default=0.6)
@@ -110,14 +108,14 @@ if __name__ == '__main__':
     input_command = " ".join(input_command)
 
     obsrv_std = torch.Tensor([0.01]).to(device)
-    model = RNNNRIBaseline(input_dim=input_dim, num_atoms=args.n_balls, hidden_dim=args.hidden_dim,
-                           edge_types=args.edge_types, mode=args.mode, obsrv_std=obsrv_std, device=device).to(device)
+    model = GILODEBaseline(input_dim=input_dim, hidden_dim=args.hidden_dim, num_atoms=args.n_balls,
+                           dataset=args.data, obsrv_std=obsrv_std, device=device).to(device)
 
     if args.load is not None:
         ckpt_path = os.path.join(args.save, args.load)
         utils.get_ckpt_model(ckpt_path, model, device)
 
-    log_path = "logs/" + args.alias + "_rnnnri_" + args.data + "_" + str(args.sample_percent_train) + "_" + args.mode + "_" + str(experimentID) + ".log"
+    log_path = "logs/" + args.alias + "_gilode_" + args.data + "_" + str(args.sample_percent_train) + "_" + args.mode + "_" + str(experimentID) + ".log"
     if not os.path.exists("logs/"):
         utils.makedirs("logs/")
     logger = utils.get_logger(logpath=log_path, filepath=os.path.abspath(__file__))
@@ -125,19 +123,28 @@ if __name__ == '__main__':
     logger.info(str(args))
     logger.info(args.alias)
 
+    # alpha (the ODE-drift graph-coupling gate) gets a boosted LR and no weight decay: as a single
+    # scalar sharing the global LR with the rest of the network, it was starved of gradient signal
+    # under long extrapolation horizons and settled back near its init instead of learning to turn
+    # on where the graph term mattered (see CHANGES.md).
+    alpha_params = [model.core.ode_func.alpha]
+    other_params = [p for n, p in model.named_parameters() if n != "core.ode_func.alpha"]
+    param_groups = [
+        {"params": other_params, "lr": args.lr, "weight_decay": args.l2},
+        {"params": alpha_params, "lr": args.lr * 10, "weight_decay": 0.0},
+    ]
     if args.optimizer == "AdamW":
-        optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.l2)
+        optimizer = optim.AdamW(param_groups)
     else:
-        optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.l2)
+        optimizer = optim.Adam(param_groups)
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 1000, eta_min=1e-9)
 
     best_test_mse = np.inf
 
-    def train_single_batch(batch_dict_encoder, batch_dict_decoder, batch_dict_graph, kl_coef):
+    def train_single_batch(batch_dict_encoder, batch_dict_decoder, batch_dict_graph):
         optimizer.zero_grad()
-        train_res = model.compute_all_losses(batch_dict_encoder, batch_dict_decoder, batch_dict_graph,
-                                             n_traj_samples=3, kl_coef=kl_coef)
+        train_res = model.compute_all_losses(batch_dict_encoder, batch_dict_decoder, batch_dict_graph)
         loss = train_res["loss"]
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
@@ -145,61 +152,70 @@ if __name__ == '__main__':
         loss_value = loss.data.item()
         del loss
         torch.cuda.empty_cache()
-        return loss_value, train_res["mse"], train_res["likelihood"], train_res["kl_first_p"], train_res["std_first_p"]
+        return loss_value, train_res["mse"], train_res["likelihood"]
 
     def train_epoch(epo):
         model.train()
-        loss_list, mse_list, likelihood_list, kl_first_p_list, std_first_p_list = [], [], [], [], []
+        loss_list, mse_list, likelihood_list = [], [], []
         torch.cuda.empty_cache()
 
         for itr in tqdm(range(train_batch)):
-            wait_until_kl_inc = 10
-            kl_coef = 0. if itr < wait_until_kl_inc else (1 - 0.99 ** (itr - wait_until_kl_inc))
-
             batch_dict_encoder = utils.get_next_batch_new(train_encoder, device)
             batch_dict_graph = utils.get_next_batch_new(train_graph, device)
             batch_dict_decoder = utils.get_next_batch(train_decoder, device)
 
-            loss, mse, likelihood, kl_first_p, std_first_p = train_single_batch(
-                batch_dict_encoder, batch_dict_decoder, batch_dict_graph, kl_coef)
+            loss, mse, likelihood = train_single_batch(batch_dict_encoder, batch_dict_decoder, batch_dict_graph)
 
             loss_list.append(loss), mse_list.append(mse), likelihood_list.append(likelihood)
-            kl_first_p_list.append(kl_first_p), std_first_p_list.append(std_first_p)
 
             del batch_dict_encoder, batch_dict_graph, batch_dict_decoder
             torch.cuda.empty_cache()
 
         scheduler.step()
 
-        message_train = 'Epoch {:04d} [Train seq (cond on sampled tp)] | Loss {:.6f} | MSE {:.6F} | Likelihood {:.6f} | KL fp {:.4f} | FP STD {:.4f}|'.format(
-            epo, np.mean(loss_list), np.mean(mse_list), np.mean(likelihood_list),
-            np.mean(kl_first_p_list), np.mean(std_first_p_list))
-        return message_train, kl_coef
+        message_train = 'Epoch {:04d} [Train seq (cond on sampled tp)] | Loss {:.6f} | MSE {:.6F} | Likelihood {:.6f}|'.format(
+            epo, np.mean(loss_list), np.mean(mse_list), np.mean(likelihood_list))
+        return message_train
+
+    ALPHA_GROUP_IDX = 1  # param_groups[1] is the alpha-only group set up above
 
     for epo in range(1, args.niters + 1):
-        message_train, kl_coef = train_epoch(epo)
+        # Anneal alpha's LR boost from 10x down to 1x over the run (was a flat 10x): alpha grew
+        # far past where it helped on charged (up to 4.05, MSE slightly worse) while it was still
+        # the right magnitude on IEEE39/springs -- decaying the boost lets it explore early and
+        # settle rather than overshoot for the whole run. scheduler.step() below re-touches this
+        # group's LR based on the shared cosine schedule, so it's reset here before each epoch's
+        # batches use it, not after.
+        alpha_boost = 1.0 + 9.0 * max(0.0, 1.0 - (epo - 1) / max(1, args.niters - 1))
+        optimizer.param_groups[ALPHA_GROUP_IDX]['lr'] = args.lr * alpha_boost
+
+        message_train = train_epoch(epo)
 
         model.eval()
         test_res = compute_loss_all_batches(model, test_encoder, test_graph, test_decoder,
-                                            n_batches=test_batch, device=device,
-                                            n_traj_samples=3, kl_coef=kl_coef)
+                                            n_batches=test_batch, device=device, n_traj_samples=1, kl_coef=0.)
 
-        message_test = 'Epoch {:04d} [Test seq (cond on sampled tp)] | Loss {:.6f} | MSE {:.6F} | Likelihood {:.6f} | KL fp {:.4f} | FP STD {:.4f}|'.format(
-            epo, test_res["loss"], test_res["mse"], test_res["likelihood"],
-            test_res["kl_first_p"], test_res["std_first_p"])
+        message_test = 'Epoch {:04d} [Test seq (cond on sampled tp)] | Loss {:.6f} | MSE {:.6F} | Likelihood {:.6f}|'.format(
+            epo, test_res["loss"], test_res["mse"], test_res["likelihood"])
+
+        alpha_val = model.core.ode_func.alpha.data.item()
+        lam_val = torch.nn.functional.softplus(model.core.lifting.log_lambda).data.item()
+        rho_val = torch.nn.functional.softplus(model.core.lifting.log_rho).data.item()
+        message_graph = 'Epoch {:04d} [Graph params] | alpha {:.4f} | lambda {:.4f} | rho {:.4f}|'.format(
+            epo, alpha_val, lam_val, rho_val)
 
         logger.info("Experiment " + str(experimentID))
         logger.info(message_train)
         logger.info(message_test)
-        logger.info("KL coef: {}".format(kl_coef))
-        print("data: %s, model: RNN-NRI, sample: %s, mode:%s" % (args.data, str(args.sample_percent_train), args.mode))
+        logger.info(message_graph)
+        print("data: %s, model: GIL-ODE, sample: %s, mode:%s" % (args.data, str(args.sample_percent_train), args.mode))
 
         if test_res["mse"] < best_test_mse:
             best_test_mse = test_res["mse"]
             message_best = 'Epoch {:04d} [Test seq (cond on sampled tp)] | Best mse {:.6f}|'.format(epo, best_test_mse)
             logger.info(message_best)
             ckpt_path = os.path.join(args.save, "experiment_" + str(
-                experimentID) + "_rnnnri_" + args.data + "_" + str(
+                experimentID) + "_gilode_" + args.data + "_" + str(
                 args.sample_percent_train) + "_" + args.mode + "_epoch_" + str(epo) + "_mse_" + str(
                 best_test_mse) + '.ckpt')
             torch.save({'args': args, 'state_dict': model.state_dict()}, ckpt_path)

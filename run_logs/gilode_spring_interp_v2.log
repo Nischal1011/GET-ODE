@@ -1,0 +1,293 @@
+Using GPU--------------------------------------------------------------------------------
+Running interp mode--------------------------------------------------------------------------------
+Loading dataset: data/example_data
+number graph in   train   is 1800
+number atoms in   train   is 5
+  0%|          | 0/1800 [00:00<?, ?it/s]  4%|▍         | 78/1800 [00:00<00:02, 772.56it/s]  9%|▉         | 159/1800 [00:00<00:02, 789.72it/s] 13%|█▎        | 242/1800 [00:00<00:01, 805.55it/s] 18%|█▊        | 325/1800 [00:00<00:01, 811.53it/s] 23%|██▎       | 409/1800 [00:00<00:01, 820.20it/s] 27%|██▋       | 492/1800 [00:00<00:01, 819.93it/s] 32%|███▏      | 574/1800 [00:00<00:01, 642.12it/s] 36%|███▋      | 656/1800 [00:00<00:01, 687.87it/s] 41%|████      | 742/1800 [00:00<00:01, 733.46it/s] 46%|████▌     | 821/1800 [00:01<00:01, 748.52it/s] 50%|████▉     | 899/1800 [00:01<00:01, 756.13it/s] 55%|█████▍    | 983/1800 [00:01<00:01, 778.88it/s] 59%|█████▉    | 1070/1800 [00:01<00:00, 805.16it/s] 64%|██████▍   | 1157/1800 [00:01<00:00, 823.67it/s] 69%|██████▉   | 1243/1800 [00:01<00:00, 832.77it/s] 74%|███████▎  | 1327/1800 [00:01<00:00, 827.66it/s] 79%|███████▊  | 1414/1800 [00:01<00:00, 839.44it/s] 83%|████████▎ | 1500/1800 [00:01<00:00, 842.70it/s] 88%|████████▊ | 1586/1800 [00:02<00:00, 846.61it/s] 93%|█████████▎| 1671/1800 [00:02<00:00, 846.43it/s] 98%|█████████▊| 1756/1800 [00:02<00:00, 846.10it/s]100%|██████████| 1800/1800 [00:02<00:00, 795.20it/s]
+/mnt/c/Users/nsubedi/Documents/LG-ODE/lib/new_dataLoader.py:297: UserWarning: 'data.DataLoader' is deprecated, use 'loader.DataLoader' instead
+  data_loader = DataLoader(data_list, batch_size=self.batch_size)
+/mnt/c/Users/nsubedi/Documents/LG-ODE/lib/new_dataLoader.py:298: UserWarning: 'data.DataLoader' is deprecated, use 'loader.DataLoader' instead
+  graph_loader = DataLoader(graph_list, batch_size=self.batch_size)
+average number of edges per graph is 4673.0194
+number graph in   val   is 200
+number atoms in   val   is 5
+  0%|          | 0/200 [00:00<?, ?it/s] 44%|████▍     | 89/200 [00:00<00:00, 879.59it/s] 88%|████████▊ | 177/200 [00:00<00:00, 860.03it/s]100%|██████████| 200/200 [00:00<00:00, 856.25it/s]
+average number of edges per graph is 4762.3200
+number graph in   test   is 500
+number atoms in   test   is 5
+  0%|          | 0/500 [00:00<?, ?it/s] 16%|█▌        | 80/500 [00:00<00:00, 792.21it/s] 32%|███▏      | 160/500 [00:00<00:00, 788.83it/s] 49%|████▉     | 244/500 [00:00<00:00, 809.52it/s] 65%|██████▌   | 327/500 [00:00<00:00, 813.47it/s] 82%|████████▏ | 409/500 [00:00<00:00, 815.65it/s] 98%|█████████▊| 491/500 [00:00<00:00, 766.34it/s]100%|██████████| 500/500 [00:00<00:00, 785.92it/s]
+/mnt/c/Users/nsubedi/Documents/LG-ODE/run_models_gilode.py
+run_models_gilode.py --data spring --niters 30 --alias gilode_spring_interp_v2
+Namespace(n_balls=5, niters=30, lr=0.0005, batch_size=256, save='experiments_gilode/', load=None, random_seed=1991, data='spring', hidden_dim=64, extrap='False', sample_percent_train=0.6, sample_percent_test=0.6, l2=0.001, optimizer='AdamW', clip=10, cutting_edge=True, extrap_num=40, alias='gilode_spring_interp_v2', dataset_dir=None, dataset='data/example_data', suffix='_springs5', total_ode_step=60, mode='interp')
+gilode_spring_interp_v2
+average number of edges per graph is 4579.5960
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:01<00:12,  1.82s/it] 25%|██▌       | 2/8 [00:02<00:06,  1.12s/it] 38%|███▊      | 3/8 [00:03<00:04,  1.08it/s] 50%|█████     | 4/8 [00:03<00:03,  1.20it/s] 62%|██████▎   | 5/8 [00:04<00:02,  1.26it/s] 75%|███████▌  | 6/8 [00:05<00:01,  1.34it/s] 88%|████████▊ | 7/8 [00:05<00:00,  1.40it/s]100%|██████████| 8/8 [00:06<00:00,  1.56it/s]100%|██████████| 8/8 [00:06<00:00,  1.26it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  3.99it/s]100%|██████████| 2/2 [00:00<00:00,  4.38it/s]100%|██████████| 2/2 [00:00<00:00,  4.31it/s]
+Experiment 28316
+Epoch 0001 [Train seq (cond on sampled tp)] | Loss 261.428507 | MSE 0.052286 | Likelihood -261.428507|
+Epoch 0001 [Test seq (cond on sampled tp)] | Loss 242.371552 | MSE 0.048474 | Likelihood -242.371552|
+Epoch 0001 [Graph params] | alpha 0.1586 | lambda 0.6911 | rho 0.6952|
+Epoch 0001 [Test seq (cond on sampled tp)] | Best mse 0.048474|
+data: spring, model: GIL-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:05,  1.32it/s] 25%|██▌       | 2/8 [00:01<00:04,  1.43it/s] 38%|███▊      | 3/8 [00:02<00:03,  1.37it/s] 50%|█████     | 4/8 [00:02<00:02,  1.40it/s] 62%|██████▎   | 5/8 [00:03<00:02,  1.46it/s] 75%|███████▌  | 6/8 [00:04<00:01,  1.48it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.51it/s]100%|██████████| 8/8 [00:05<00:00,  1.62it/s]100%|██████████| 8/8 [00:05<00:00,  1.51it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.91it/s]100%|██████████| 2/2 [00:00<00:00,  4.84it/s]100%|██████████| 2/2 [00:00<00:00,  4.84it/s]
+Experiment 28316
+Epoch 0002 [Train seq (cond on sampled tp)] | Loss 236.260153 | MSE 0.047252 | Likelihood -236.260153|
+Epoch 0002 [Test seq (cond on sampled tp)] | Loss 218.179764 | MSE 0.043636 | Likelihood -218.179764|
+Epoch 0002 [Graph params] | alpha 0.1987 | lambda 0.6891 | rho 0.6973|
+Epoch 0002 [Test seq (cond on sampled tp)] | Best mse 0.043636|
+data: spring, model: GIL-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.62it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.56it/s] 38%|███▊      | 3/8 [00:01<00:03,  1.62it/s] 50%|█████     | 4/8 [00:02<00:02,  1.61it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.67it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.64it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.51it/s]100%|██████████| 8/8 [00:04<00:00,  1.67it/s]100%|██████████| 8/8 [00:04<00:00,  1.63it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  3.58it/s]100%|██████████| 2/2 [00:00<00:00,  3.87it/s]100%|██████████| 2/2 [00:00<00:00,  3.82it/s]
+Experiment 28316
+Epoch 0003 [Train seq (cond on sampled tp)] | Loss 211.662157 | MSE 0.042332 | Likelihood -211.662157|
+Epoch 0003 [Test seq (cond on sampled tp)] | Loss 193.619637 | MSE 0.038724 | Likelihood -193.619637|
+Epoch 0003 [Graph params] | alpha 0.2444 | lambda 0.6869 | rho 0.6995|
+Epoch 0003 [Test seq (cond on sampled tp)] | Best mse 0.038724|
+data: spring, model: GIL-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.53it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.61it/s] 38%|███▊      | 3/8 [00:01<00:03,  1.58it/s] 50%|█████     | 4/8 [00:02<00:02,  1.56it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.55it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.56it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.60it/s]100%|██████████| 8/8 [00:04<00:00,  1.73it/s]100%|██████████| 8/8 [00:04<00:00,  1.63it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  3.91it/s]100%|██████████| 2/2 [00:00<00:00,  4.08it/s]100%|██████████| 2/2 [00:00<00:00,  4.05it/s]
+Experiment 28316
+Epoch 0004 [Train seq (cond on sampled tp)] | Loss 186.096392 | MSE 0.037219 | Likelihood -186.096392|
+Epoch 0004 [Test seq (cond on sampled tp)] | Loss 167.824020 | MSE 0.033565 | Likelihood -167.824020|
+Epoch 0004 [Graph params] | alpha 0.2947 | lambda 0.6846 | rho 0.7020|
+Epoch 0004 [Test seq (cond on sampled tp)] | Best mse 0.033565|
+data: spring, model: GIL-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.53it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.59it/s] 38%|███▊      | 3/8 [00:01<00:03,  1.62it/s] 50%|█████     | 4/8 [00:02<00:02,  1.63it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.66it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.67it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.66it/s]100%|██████████| 8/8 [00:04<00:00,  1.87it/s]100%|██████████| 8/8 [00:04<00:00,  1.72it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.77it/s]100%|██████████| 2/2 [00:00<00:00,  4.30it/s]100%|██████████| 2/2 [00:00<00:00,  4.36it/s]
+Experiment 28316
+Epoch 0005 [Train seq (cond on sampled tp)] | Loss 159.053186 | MSE 0.031811 | Likelihood -159.053186|
+Epoch 0005 [Test seq (cond on sampled tp)] | Loss 140.727379 | MSE 0.028145 | Likelihood -140.727379|
+Epoch 0005 [Graph params] | alpha 0.3492 | lambda 0.6823 | rho 0.7047|
+Epoch 0005 [Test seq (cond on sampled tp)] | Best mse 0.028145|
+data: spring, model: GIL-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.60it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.61it/s] 38%|███▊      | 3/8 [00:01<00:03,  1.51it/s] 50%|█████     | 4/8 [00:02<00:02,  1.47it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.50it/s] 75%|███████▌  | 6/8 [00:04<00:01,  1.47it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.48it/s]100%|██████████| 8/8 [00:05<00:00,  1.58it/s]100%|██████████| 8/8 [00:05<00:00,  1.53it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.12it/s]100%|██████████| 2/2 [00:00<00:00,  3.59it/s]100%|██████████| 2/2 [00:00<00:00,  3.66it/s]
+Experiment 28316
+Epoch 0006 [Train seq (cond on sampled tp)] | Loss 131.025117 | MSE 0.026205 | Likelihood -131.025117|
+Epoch 0006 [Test seq (cond on sampled tp)] | Loss 113.573986 | MSE 0.022715 | Likelihood -113.573986|
+Epoch 0006 [Graph params] | alpha 0.4071 | lambda 0.6799 | rho 0.7076|
+Epoch 0006 [Test seq (cond on sampled tp)] | Best mse 0.022715|
+data: spring, model: GIL-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.47it/s] 25%|██▌       | 2/8 [00:01<00:04,  1.49it/s] 38%|███▊      | 3/8 [00:02<00:03,  1.44it/s] 50%|█████     | 4/8 [00:02<00:02,  1.43it/s] 62%|██████▎   | 5/8 [00:03<00:02,  1.48it/s] 75%|███████▌  | 6/8 [00:04<00:01,  1.48it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.46it/s]100%|██████████| 8/8 [00:05<00:00,  1.58it/s]100%|██████████| 8/8 [00:05<00:00,  1.51it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  3.33it/s]100%|██████████| 2/2 [00:00<00:00,  3.60it/s]100%|██████████| 2/2 [00:00<00:00,  3.55it/s]
+Experiment 28316
+Epoch 0007 [Train seq (cond on sampled tp)] | Loss 103.903865 | MSE 0.020781 | Likelihood -103.903865|
+Epoch 0007 [Test seq (cond on sampled tp)] | Loss 88.163677 | MSE 0.017633 | Likelihood -88.163677|
+Epoch 0007 [Graph params] | alpha 0.4666 | lambda 0.6773 | rho 0.7107|
+Epoch 0007 [Test seq (cond on sampled tp)] | Best mse 0.017633|
+data: spring, model: GIL-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.41it/s] 25%|██▌       | 2/8 [00:01<00:04,  1.46it/s] 38%|███▊      | 3/8 [00:01<00:03,  1.55it/s] 50%|█████     | 4/8 [00:02<00:02,  1.56it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.53it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.49it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.48it/s]100%|██████████| 8/8 [00:05<00:00,  1.60it/s]100%|██████████| 8/8 [00:05<00:00,  1.54it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.24it/s]100%|██████████| 2/2 [00:00<00:00,  3.85it/s]100%|██████████| 2/2 [00:00<00:00,  3.90it/s]
+Experiment 28316
+Epoch 0008 [Train seq (cond on sampled tp)] | Loss 80.053355 | MSE 0.016011 | Likelihood -80.053355|
+Epoch 0008 [Test seq (cond on sampled tp)] | Loss 68.298222 | MSE 0.013660 | Likelihood -68.298222|
+Epoch 0008 [Graph params] | alpha 0.5249 | lambda 0.6746 | rho 0.7137|
+Epoch 0008 [Test seq (cond on sampled tp)] | Best mse 0.013660|
+data: spring, model: GIL-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.55it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.51it/s] 38%|███▊      | 3/8 [00:01<00:03,  1.63it/s] 50%|█████     | 4/8 [00:02<00:02,  1.60it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.63it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.63it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.57it/s]100%|██████████| 8/8 [00:04<00:00,  1.72it/s]100%|██████████| 8/8 [00:04<00:00,  1.64it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  5.01it/s]100%|██████████| 2/2 [00:00<00:00,  4.62it/s]100%|██████████| 2/2 [00:00<00:00,  4.67it/s]
+Experiment 28316
+Epoch 0009 [Train seq (cond on sampled tp)] | Loss 62.783292 | MSE 0.012557 | Likelihood -62.783292|
+Epoch 0009 [Test seq (cond on sampled tp)] | Loss 54.001656 | MSE 0.010800 | Likelihood -54.001656|
+Epoch 0009 [Graph params] | alpha 0.5696 | lambda 0.6725 | rho 0.7155|
+Epoch 0009 [Test seq (cond on sampled tp)] | Best mse 0.010800|
+data: spring, model: GIL-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.47it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.61it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.68it/s] 50%|█████     | 4/8 [00:02<00:02,  1.65it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.64it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.65it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.67it/s]100%|██████████| 8/8 [00:04<00:00,  1.77it/s]100%|██████████| 8/8 [00:04<00:00,  1.69it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  5.30it/s]100%|██████████| 2/2 [00:00<00:00,  4.83it/s]100%|██████████| 2/2 [00:00<00:00,  4.89it/s]
+Experiment 28316
+Epoch 0010 [Train seq (cond on sampled tp)] | Loss 49.080380 | MSE 0.009816 | Likelihood -49.080380|
+Epoch 0010 [Test seq (cond on sampled tp)] | Loss 41.732632 | MSE 0.008347 | Likelihood -41.732632|
+Epoch 0010 [Graph params] | alpha 0.5981 | lambda 0.6713 | rho 0.7160|
+Epoch 0010 [Test seq (cond on sampled tp)] | Best mse 0.008347|
+data: spring, model: GIL-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:03,  1.76it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.68it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.70it/s] 50%|█████     | 4/8 [00:02<00:02,  1.68it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.67it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.64it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.59it/s]100%|██████████| 8/8 [00:04<00:00,  1.75it/s]100%|██████████| 8/8 [00:04<00:00,  1.69it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.29it/s]100%|██████████| 2/2 [00:00<00:00,  4.35it/s]100%|██████████| 2/2 [00:00<00:00,  4.34it/s]
+Experiment 28316
+Epoch 0011 [Train seq (cond on sampled tp)] | Loss 38.171402 | MSE 0.007634 | Likelihood -38.171402|
+Epoch 0011 [Test seq (cond on sampled tp)] | Loss 33.051378 | MSE 0.006610 | Likelihood -33.051378|
+Epoch 0011 [Graph params] | alpha 0.6203 | lambda 0.6703 | rho 0.7162|
+Epoch 0011 [Test seq (cond on sampled tp)] | Best mse 0.006610|
+data: spring, model: GIL-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.49it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.58it/s] 38%|███▊      | 3/8 [00:02<00:03,  1.45it/s] 50%|█████     | 4/8 [00:02<00:02,  1.49it/s] 62%|██████▎   | 5/8 [00:03<00:02,  1.49it/s] 75%|███████▌  | 6/8 [00:04<00:01,  1.49it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.51it/s]100%|██████████| 8/8 [00:05<00:00,  1.56it/s]100%|██████████| 8/8 [00:05<00:00,  1.52it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  5.16it/s]100%|██████████| 2/2 [00:00<00:00,  5.12it/s]100%|██████████| 2/2 [00:00<00:00,  5.12it/s]
+Experiment 28316
+Epoch 0012 [Train seq (cond on sampled tp)] | Loss 30.217783 | MSE 0.006044 | Likelihood -30.217783|
+Epoch 0012 [Test seq (cond on sampled tp)] | Loss 26.522283 | MSE 0.005304 | Likelihood -26.522283|
+Epoch 0012 [Graph params] | alpha 0.6332 | lambda 0.6694 | rho 0.7164|
+Epoch 0012 [Test seq (cond on sampled tp)] | Best mse 0.005304|
+data: spring, model: GIL-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.57it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.55it/s] 38%|███▊      | 3/8 [00:01<00:03,  1.57it/s] 50%|█████     | 4/8 [00:02<00:02,  1.49it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.51it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.56it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.58it/s]100%|██████████| 8/8 [00:04<00:00,  1.79it/s]100%|██████████| 8/8 [00:04<00:00,  1.63it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.13it/s]100%|██████████| 2/2 [00:00<00:00,  4.56it/s]100%|██████████| 2/2 [00:00<00:00,  4.48it/s]
+Experiment 28316
+Epoch 0013 [Train seq (cond on sampled tp)] | Loss 24.652368 | MSE 0.004930 | Likelihood -24.652368|
+Epoch 0013 [Test seq (cond on sampled tp)] | Loss 22.010901 | MSE 0.004402 | Likelihood -22.010901|
+Epoch 0013 [Graph params] | alpha 0.6285 | lambda 0.6685 | rho 0.7164|
+Epoch 0013 [Test seq (cond on sampled tp)] | Best mse 0.004402|
+data: spring, model: GIL-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:03,  1.88it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.71it/s] 38%|███▊      | 3/8 [00:01<00:03,  1.51it/s] 50%|█████     | 4/8 [00:02<00:02,  1.60it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.61it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.61it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.59it/s]100%|██████████| 8/8 [00:04<00:00,  1.68it/s]100%|██████████| 8/8 [00:04<00:00,  1.64it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  3.93it/s]100%|██████████| 2/2 [00:00<00:00,  4.42it/s]100%|██████████| 2/2 [00:00<00:00,  4.34it/s]
+Experiment 28316
+Epoch 0014 [Train seq (cond on sampled tp)] | Loss 20.363907 | MSE 0.004073 | Likelihood -20.363907|
+Epoch 0014 [Test seq (cond on sampled tp)] | Loss 18.156588 | MSE 0.003631 | Likelihood -18.156588|
+Epoch 0014 [Graph params] | alpha 0.6135 | lambda 0.6677 | rho 0.7164|
+Epoch 0014 [Test seq (cond on sampled tp)] | Best mse 0.003631|
+data: spring, model: GIL-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:05,  1.34it/s] 25%|██▌       | 2/8 [00:01<00:04,  1.44it/s] 38%|███▊      | 3/8 [00:02<00:03,  1.50it/s] 50%|█████     | 4/8 [00:02<00:02,  1.47it/s] 62%|██████▎   | 5/8 [00:03<00:02,  1.45it/s] 75%|███████▌  | 6/8 [00:04<00:01,  1.39it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.46it/s]100%|██████████| 8/8 [00:05<00:00,  1.57it/s]100%|██████████| 8/8 [00:05<00:00,  1.49it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.35it/s]100%|██████████| 2/2 [00:00<00:00,  4.79it/s]100%|██████████| 2/2 [00:00<00:00,  4.71it/s]
+Experiment 28316
+Epoch 0015 [Train seq (cond on sampled tp)] | Loss 16.827838 | MSE 0.003366 | Likelihood -16.827838|
+Epoch 0015 [Test seq (cond on sampled tp)] | Loss 15.038540 | MSE 0.003008 | Likelihood -15.038540|
+Epoch 0015 [Graph params] | alpha 0.6050 | lambda 0.6670 | rho 0.7163|
+Epoch 0015 [Test seq (cond on sampled tp)] | Best mse 0.003008|
+data: spring, model: GIL-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.55it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.72it/s] 38%|███▊      | 3/8 [00:01<00:03,  1.65it/s] 50%|█████     | 4/8 [00:02<00:02,  1.55it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.57it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.52it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.50it/s]100%|██████████| 8/8 [00:04<00:00,  1.69it/s]100%|██████████| 8/8 [00:04<00:00,  1.61it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  5.17it/s]100%|██████████| 2/2 [00:00<00:00,  4.32it/s]100%|██████████| 2/2 [00:00<00:00,  4.42it/s]
+Experiment 28316
+Epoch 0016 [Train seq (cond on sampled tp)] | Loss 13.873936 | MSE 0.002775 | Likelihood -13.873936|
+Epoch 0016 [Test seq (cond on sampled tp)] | Loss 12.364137 | MSE 0.002473 | Likelihood -12.364137|
+Epoch 0016 [Graph params] | alpha 0.6029 | lambda 0.6663 | rho 0.7162|
+Epoch 0016 [Test seq (cond on sampled tp)] | Best mse 0.002473|
+data: spring, model: GIL-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:03,  1.80it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.69it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.72it/s] 50%|█████     | 4/8 [00:02<00:02,  1.64it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.64it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.66it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.62it/s]100%|██████████| 8/8 [00:04<00:00,  1.74it/s]100%|██████████| 8/8 [00:04<00:00,  1.69it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  3.66it/s]100%|██████████| 2/2 [00:00<00:00,  3.57it/s]100%|██████████| 2/2 [00:00<00:00,  3.58it/s]
+Experiment 28316
+Epoch 0017 [Train seq (cond on sampled tp)] | Loss 11.333472 | MSE 0.002267 | Likelihood -11.333472|
+Epoch 0017 [Test seq (cond on sampled tp)] | Loss 10.054410 | MSE 0.002011 | Likelihood -10.054410|
+Epoch 0017 [Graph params] | alpha 0.6022 | lambda 0.6657 | rho 0.7161|
+Epoch 0017 [Test seq (cond on sampled tp)] | Best mse 0.002011|
+data: spring, model: GIL-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.65it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.76it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.69it/s] 50%|█████     | 4/8 [00:02<00:02,  1.67it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.68it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.65it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.66it/s]100%|██████████| 8/8 [00:04<00:00,  1.86it/s]100%|██████████| 8/8 [00:04<00:00,  1.74it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  3.65it/s]100%|██████████| 2/2 [00:00<00:00,  3.58it/s]100%|██████████| 2/2 [00:00<00:00,  3.59it/s]
+Experiment 28316
+Epoch 0018 [Train seq (cond on sampled tp)] | Loss 9.156749 | MSE 0.001831 | Likelihood -9.156749|
+Epoch 0018 [Test seq (cond on sampled tp)] | Loss 8.100236 | MSE 0.001620 | Likelihood -8.100236|
+Epoch 0018 [Graph params] | alpha 0.6012 | lambda 0.6651 | rho 0.7161|
+Epoch 0018 [Test seq (cond on sampled tp)] | Best mse 0.001620|
+data: spring, model: GIL-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.40it/s] 25%|██▌       | 2/8 [00:01<00:04,  1.49it/s] 38%|███▊      | 3/8 [00:02<00:03,  1.45it/s] 50%|█████     | 4/8 [00:02<00:02,  1.42it/s] 62%|██████▎   | 5/8 [00:03<00:02,  1.42it/s] 75%|███████▌  | 6/8 [00:04<00:01,  1.42it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.41it/s]100%|██████████| 8/8 [00:05<00:00,  1.46it/s]100%|██████████| 8/8 [00:05<00:00,  1.44it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  3.97it/s]100%|██████████| 2/2 [00:00<00:00,  4.04it/s]100%|██████████| 2/2 [00:00<00:00,  4.02it/s]
+Experiment 28316
+Epoch 0019 [Train seq (cond on sampled tp)] | Loss 7.349802 | MSE 0.001470 | Likelihood -7.349802|
+Epoch 0019 [Test seq (cond on sampled tp)] | Loss 6.526412 | MSE 0.001305 | Likelihood -6.526412|
+Epoch 0019 [Graph params] | alpha 0.5989 | lambda 0.6646 | rho 0.7160|
+Epoch 0019 [Test seq (cond on sampled tp)] | Best mse 0.001305|
+data: spring, model: GIL-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.60it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.55it/s] 38%|███▊      | 3/8 [00:01<00:03,  1.57it/s] 50%|█████     | 4/8 [00:02<00:02,  1.49it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.54it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.60it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.61it/s]100%|██████████| 8/8 [00:04<00:00,  1.70it/s]100%|██████████| 8/8 [00:04<00:00,  1.62it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  3.53it/s]100%|██████████| 2/2 [00:00<00:00,  3.88it/s]100%|██████████| 2/2 [00:00<00:00,  3.82it/s]
+Experiment 28316
+Epoch 0020 [Train seq (cond on sampled tp)] | Loss 5.954543 | MSE 0.001191 | Likelihood -5.954543|
+Epoch 0020 [Test seq (cond on sampled tp)] | Loss 5.391656 | MSE 0.001078 | Likelihood -5.391656|
+Epoch 0020 [Graph params] | alpha 0.5945 | lambda 0.6642 | rho 0.7160|
+Epoch 0020 [Test seq (cond on sampled tp)] | Best mse 0.001078|
+data: spring, model: GIL-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.48it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.56it/s] 38%|███▊      | 3/8 [00:02<00:03,  1.49it/s] 50%|█████     | 4/8 [00:02<00:02,  1.45it/s] 62%|██████▎   | 5/8 [00:03<00:02,  1.47it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.55it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.63it/s]100%|██████████| 8/8 [00:04<00:00,  1.84it/s]100%|██████████| 8/8 [00:04<00:00,  1.63it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.21it/s]100%|██████████| 2/2 [00:00<00:00,  4.43it/s]100%|██████████| 2/2 [00:00<00:00,  4.39it/s]
+Experiment 28316
+Epoch 0021 [Train seq (cond on sampled tp)] | Loss 5.024918 | MSE 0.001005 | Likelihood -5.024918|
+Epoch 0021 [Test seq (cond on sampled tp)] | Loss 4.714932 | MSE 0.000943 | Likelihood -4.714932|
+Epoch 0021 [Graph params] | alpha 0.5879 | lambda 0.6638 | rho 0.7160|
+Epoch 0021 [Test seq (cond on sampled tp)] | Best mse 0.000943|
+data: spring, model: GIL-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.69it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.76it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.69it/s] 50%|█████     | 4/8 [00:02<00:02,  1.67it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.58it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.60it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.68it/s]100%|██████████| 8/8 [00:04<00:00,  1.86it/s]100%|██████████| 8/8 [00:04<00:00,  1.73it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.50it/s]100%|██████████| 2/2 [00:00<00:00,  4.68it/s]100%|██████████| 2/2 [00:00<00:00,  4.64it/s]
+Experiment 28316
+Epoch 0022 [Train seq (cond on sampled tp)] | Loss 4.515905 | MSE 0.000903 | Likelihood -4.515905|
+Epoch 0022 [Test seq (cond on sampled tp)] | Loss 4.364725 | MSE 0.000873 | Likelihood -4.364725|
+Epoch 0022 [Graph params] | alpha 0.5798 | lambda 0.6636 | rho 0.7159|
+Epoch 0022 [Test seq (cond on sampled tp)] | Best mse 0.000873|
+data: spring, model: GIL-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.64it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.69it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.68it/s] 50%|█████     | 4/8 [00:02<00:02,  1.69it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.58it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.60it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.65it/s]100%|██████████| 8/8 [00:04<00:00,  1.81it/s]100%|██████████| 8/8 [00:04<00:00,  1.71it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.84it/s]100%|██████████| 2/2 [00:00<00:00,  5.10it/s]100%|██████████| 2/2 [00:00<00:00,  5.06it/s]
+Experiment 28316
+Epoch 0023 [Train seq (cond on sampled tp)] | Loss 4.255684 | MSE 0.000851 | Likelihood -4.255684|
+Epoch 0023 [Test seq (cond on sampled tp)] | Loss 4.185085 | MSE 0.000837 | Likelihood -4.185085|
+Epoch 0023 [Graph params] | alpha 0.5719 | lambda 0.6634 | rho 0.7159|
+Epoch 0023 [Test seq (cond on sampled tp)] | Best mse 0.000837|
+data: spring, model: GIL-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.63it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.67it/s] 38%|███▊      | 3/8 [00:01<00:03,  1.62it/s] 50%|█████     | 4/8 [00:02<00:02,  1.62it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.61it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.61it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.57it/s]100%|██████████| 8/8 [00:04<00:00,  1.67it/s]100%|██████████| 8/8 [00:04<00:00,  1.63it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  3.94it/s]100%|██████████| 2/2 [00:00<00:00,  3.69it/s]100%|██████████| 2/2 [00:00<00:00,  3.72it/s]
+Experiment 28316
+Epoch 0024 [Train seq (cond on sampled tp)] | Loss 4.116426 | MSE 0.000823 | Likelihood -4.116426|
+Epoch 0024 [Test seq (cond on sampled tp)] | Loss 4.084343 | MSE 0.000817 | Likelihood -4.084343|
+Epoch 0024 [Graph params] | alpha 0.5658 | lambda 0.6632 | rho 0.7159|
+Epoch 0024 [Test seq (cond on sampled tp)] | Best mse 0.000817|
+data: spring, model: GIL-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.47it/s] 25%|██▌       | 2/8 [00:01<00:04,  1.50it/s] 38%|███▊      | 3/8 [00:02<00:03,  1.42it/s] 50%|█████     | 4/8 [00:02<00:02,  1.44it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.53it/s] 75%|███████▌  | 6/8 [00:04<00:01,  1.51it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.50it/s]100%|██████████| 8/8 [00:05<00:00,  1.63it/s]100%|██████████| 8/8 [00:05<00:00,  1.54it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  3.96it/s]100%|██████████| 2/2 [00:00<00:00,  4.57it/s]100%|██████████| 2/2 [00:00<00:00,  4.46it/s]
+Experiment 28316
+Epoch 0025 [Train seq (cond on sampled tp)] | Loss 4.036298 | MSE 0.000807 | Likelihood -4.036298|
+Epoch 0025 [Test seq (cond on sampled tp)] | Loss 4.023030 | MSE 0.000805 | Likelihood -4.023030|
+Epoch 0025 [Graph params] | alpha 0.5626 | lambda 0.6631 | rho 0.7159|
+Epoch 0025 [Test seq (cond on sampled tp)] | Best mse 0.000805|
+data: spring, model: GIL-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.52it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.51it/s] 38%|███▊      | 3/8 [00:01<00:03,  1.53it/s] 50%|█████     | 4/8 [00:02<00:02,  1.53it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.50it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.53it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.55it/s]100%|██████████| 8/8 [00:05<00:00,  1.70it/s]100%|██████████| 8/8 [00:05<00:00,  1.59it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  3.45it/s]100%|██████████| 2/2 [00:00<00:00,  4.25it/s]100%|██████████| 2/2 [00:00<00:00,  4.10it/s]
+Experiment 28316
+Epoch 0026 [Train seq (cond on sampled tp)] | Loss 3.986667 | MSE 0.000797 | Likelihood -3.986667|
+Epoch 0026 [Test seq (cond on sampled tp)] | Loss 3.983439 | MSE 0.000797 | Likelihood -3.983439|
+Epoch 0026 [Graph params] | alpha 0.5617 | lambda 0.6630 | rho 0.7159|
+Epoch 0026 [Test seq (cond on sampled tp)] | Best mse 0.000797|
+data: spring, model: GIL-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:05,  1.33it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.53it/s] 38%|███▊      | 3/8 [00:02<00:03,  1.51it/s] 50%|█████     | 4/8 [00:02<00:02,  1.48it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.55it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.62it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.65it/s]100%|██████████| 8/8 [00:04<00:00,  1.87it/s]100%|██████████| 8/8 [00:04<00:00,  1.66it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.40it/s]100%|██████████| 2/2 [00:00<00:00,  4.23it/s]100%|██████████| 2/2 [00:00<00:00,  4.24it/s]
+Experiment 28316
+Epoch 0027 [Train seq (cond on sampled tp)] | Loss 3.954145 | MSE 0.000791 | Likelihood -3.954145|
+Epoch 0027 [Test seq (cond on sampled tp)] | Loss 3.956066 | MSE 0.000791 | Likelihood -3.956066|
+Epoch 0027 [Graph params] | alpha 0.5619 | lambda 0.6630 | rho 0.7158|
+Epoch 0027 [Test seq (cond on sampled tp)] | Best mse 0.000791|
+data: spring, model: GIL-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.73it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.59it/s] 38%|███▊      | 3/8 [00:01<00:03,  1.56it/s] 50%|█████     | 4/8 [00:02<00:02,  1.50it/s] 62%|██████▎   | 5/8 [00:03<00:02,  1.49it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.53it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.58it/s]100%|██████████| 8/8 [00:04<00:00,  1.75it/s]100%|██████████| 8/8 [00:04<00:00,  1.62it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  3.58it/s]100%|██████████| 2/2 [00:00<00:00,  3.73it/s]100%|██████████| 2/2 [00:00<00:00,  3.71it/s]
+Experiment 28316
+Epoch 0028 [Train seq (cond on sampled tp)] | Loss 3.931456 | MSE 0.000786 | Likelihood -3.931456|
+Epoch 0028 [Test seq (cond on sampled tp)] | Loss 3.936466 | MSE 0.000787 | Likelihood -3.936466|
+Epoch 0028 [Graph params] | alpha 0.5620 | lambda 0.6629 | rho 0.7158|
+Epoch 0028 [Test seq (cond on sampled tp)] | Best mse 0.000787|
+data: spring, model: GIL-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.50it/s] 25%|██▌       | 2/8 [00:01<00:04,  1.42it/s] 38%|███▊      | 3/8 [00:01<00:03,  1.53it/s] 50%|█████     | 4/8 [00:02<00:02,  1.55it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.52it/s] 75%|███████▌  | 6/8 [00:04<00:01,  1.49it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.46it/s]100%|██████████| 8/8 [00:05<00:00,  1.57it/s]100%|██████████| 8/8 [00:05<00:00,  1.52it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  3.78it/s]100%|██████████| 2/2 [00:00<00:00,  3.84it/s]100%|██████████| 2/2 [00:00<00:00,  3.83it/s]
+Experiment 28316
+Epoch 0029 [Train seq (cond on sampled tp)] | Loss 3.914872 | MSE 0.000783 | Likelihood -3.914872|
+Epoch 0029 [Test seq (cond on sampled tp)] | Loss 3.921968 | MSE 0.000784 | Likelihood -3.921968|
+Epoch 0029 [Graph params] | alpha 0.5613 | lambda 0.6629 | rho 0.7158|
+Epoch 0029 [Test seq (cond on sampled tp)] | Best mse 0.000784|
+data: spring, model: GIL-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.55it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.64it/s] 38%|███▊      | 3/8 [00:01<00:03,  1.65it/s] 50%|█████     | 4/8 [00:02<00:02,  1.70it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.72it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.74it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.70it/s]100%|██████████| 8/8 [00:04<00:00,  1.85it/s]100%|██████████| 8/8 [00:04<00:00,  1.75it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  5.23it/s]100%|██████████| 2/2 [00:00<00:00,  5.08it/s]100%|██████████| 2/2 [00:00<00:00,  5.10it/s]
+Experiment 28316
+Epoch 0030 [Train seq (cond on sampled tp)] | Loss 3.902321 | MSE 0.000780 | Likelihood -3.902321|
+Epoch 0030 [Test seq (cond on sampled tp)] | Loss 3.910760 | MSE 0.000782 | Likelihood -3.910760|
+Epoch 0030 [Graph params] | alpha 0.5599 | lambda 0.6629 | rho 0.7158|
+Epoch 0030 [Test seq (cond on sampled tp)] | Best mse 0.000782|
+data: spring, model: GIL-ODE, sample: 0.6, mode:interp

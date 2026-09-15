@@ -1,0 +1,470 @@
+Using GPU--------------------------------------------------------------------------------
+Running interp mode--------------------------------------------------------------------------------
+Loading dataset: data/example_data
+number graph in   train   is 1800
+number atoms in   train   is 5
+  0%|          | 0/1800 [00:00<?, ?it/s]  5%|▍         | 86/1800 [00:00<00:02, 856.27it/s] 10%|▉         | 175/1800 [00:00<00:01, 873.16it/s] 15%|█▍        | 263/1800 [00:00<00:01, 865.05it/s] 20%|█▉        | 352/1800 [00:00<00:01, 873.02it/s] 24%|██▍       | 440/1800 [00:00<00:01, 863.41it/s] 29%|██▉       | 527/1800 [00:00<00:01, 693.99it/s] 34%|███▍      | 613/1800 [00:00<00:01, 739.13it/s] 39%|███▉      | 701/1800 [00:00<00:01, 777.86it/s] 44%|████▎     | 784/1800 [00:00<00:01, 791.48it/s] 48%|████▊     | 872/1800 [00:01<00:01, 817.02it/s] 53%|█████▎    | 960/1800 [00:01<00:01, 833.97it/s] 58%|█████▊    | 1048/1800 [00:01<00:00, 844.31it/s] 63%|██████▎   | 1138/1800 [00:01<00:00, 859.06it/s] 68%|██████▊   | 1225/1800 [00:01<00:00, 852.03it/s] 73%|███████▎  | 1312/1800 [00:01<00:00, 854.43it/s] 78%|███████▊  | 1399/1800 [00:01<00:00, 857.15it/s] 83%|████████▎ | 1487/1800 [00:01<00:00, 862.69it/s] 88%|████████▊ | 1575/1800 [00:01<00:00, 867.45it/s] 92%|█████████▏| 1662/1800 [00:02<00:00, 849.78it/s] 97%|█████████▋| 1748/1800 [00:02<00:00, 821.05it/s]100%|██████████| 1800/1800 [00:02<00:00, 827.92it/s]
+/mnt/c/Users/nsubedi/Documents/LG-ODE/lib/new_dataLoader.py:297: UserWarning: 'data.DataLoader' is deprecated, use 'loader.DataLoader' instead
+  data_loader = DataLoader(data_list, batch_size=self.batch_size)
+/mnt/c/Users/nsubedi/Documents/LG-ODE/lib/new_dataLoader.py:298: UserWarning: 'data.DataLoader' is deprecated, use 'loader.DataLoader' instead
+  graph_loader = DataLoader(graph_list, batch_size=self.batch_size)
+average number of edges per graph is 4673.0194
+number graph in   val   is 200
+number atoms in   val   is 5
+  0%|          | 0/200 [00:00<?, ?it/s] 48%|████▊     | 95/200 [00:00<00:00, 942.01it/s] 95%|█████████▌| 190/200 [00:00<00:00, 911.79it/s]100%|██████████| 200/200 [00:00<00:00, 909.01it/s]
+average number of edges per graph is 4762.3200
+number graph in   test   is 500
+number atoms in   test   is 5
+  0%|          | 0/500 [00:00<?, ?it/s] 16%|█▌        | 80/500 [00:00<00:00, 797.93it/s] 34%|███▎      | 168/500 [00:00<00:00, 843.07it/s] 51%|█████     | 253/500 [00:00<00:00, 803.58it/s] 68%|██████▊   | 340/500 [00:00<00:00, 825.77it/s] 86%|████████▌ | 428/500 [00:00<00:00, 842.17it/s]100%|██████████| 500/500 [00:00<00:00, 830.54it/s]
+/mnt/c/Users/nsubedi/Documents/LG-ODE/run_models_latentode.py
+run_models_latentode.py --data spring --niters 50 --hidden-dim 180 --alias final_latentode_spring_interp
+Namespace(n_balls=5, niters=50, lr=0.0005, batch_size=256, save='experiments_latentode/', load=None, random_seed=1991, data='spring', latents=16, hidden_dim=180, extrap='False', sample_percent_train=0.6, sample_percent_test=0.6, l2=0.001, optimizer='AdamW', clip=10, cutting_edge=True, extrap_num=40, alias='final_latentode_spring_interp', dataset_dir=None, dataset='data/example_data', suffix='_springs5', total_ode_step=60, mode='interp')
+final_latentode_spring_interp
+average number of edges per graph is 4579.5960
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:01<00:12,  1.79s/it] 25%|██▌       | 2/8 [00:02<00:06,  1.08s/it] 38%|███▊      | 3/8 [00:02<00:04,  1.20it/s] 50%|█████     | 4/8 [00:03<00:03,  1.33it/s] 62%|██████▎   | 5/8 [00:04<00:02,  1.46it/s] 75%|███████▌  | 6/8 [00:04<00:01,  1.48it/s] 88%|████████▊ | 7/8 [00:05<00:00,  1.51it/s]100%|██████████| 8/8 [00:05<00:00,  1.65it/s]100%|██████████| 8/8 [00:05<00:00,  1.36it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.08it/s]100%|██████████| 2/2 [00:00<00:00,  4.84it/s]100%|██████████| 2/2 [00:00<00:00,  4.70it/s]
+Experiment 44485
+Epoch 0001 [Train seq (cond on sampled tp)] | Loss 211.338041 | MSE 0.042562 | Likelihood -212.807934 | KL fp 2.4594 | FP STD 0.0856|
+Epoch 0001 [Test seq (cond on sampled tp)] | Loss 136.146225 | MSE 0.027465 | Likelihood -137.323738 | KL fp 2.6894 | FP STD 0.0722|
+KL coef: 0.0
+Epoch 0001 [Test seq (cond on sampled tp)] | Best mse 0.027465|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.75it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.85it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.87it/s] 50%|█████     | 4/8 [00:02<00:02,  1.89it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.79it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.80it/s] 88%|████████▊ | 7/8 [00:03<00:00,  1.78it/s]100%|██████████| 8/8 [00:04<00:00,  1.93it/s]100%|██████████| 8/8 [00:04<00:00,  1.86it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.92it/s]100%|██████████| 2/2 [00:00<00:00,  5.27it/s]100%|██████████| 2/2 [00:00<00:00,  5.20it/s]
+Experiment 44485
+Epoch 0002 [Train seq (cond on sampled tp)] | Loss 124.376560 | MSE 0.025114 | Likelihood -125.571316 | KL fp 2.9016 | FP STD 0.0578|
+Epoch 0002 [Test seq (cond on sampled tp)] | Loss 109.827991 | MSE 0.022186 | Likelihood -110.928070 | KL fp 3.2015 | FP STD 0.0411|
+KL coef: 0.0
+Epoch 0002 [Test seq (cond on sampled tp)] | Best mse 0.022186|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.68it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.69it/s] 38%|███▊      | 3/8 [00:01<00:03,  1.64it/s] 50%|█████     | 4/8 [00:02<00:02,  1.69it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.68it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.64it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.69it/s]100%|██████████| 8/8 [00:04<00:00,  1.98it/s]100%|██████████| 8/8 [00:04<00:00,  1.78it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.88it/s]100%|██████████| 2/2 [00:00<00:00,  4.93it/s]100%|██████████| 2/2 [00:00<00:00,  4.92it/s]
+Experiment 44485
+Epoch 0003 [Train seq (cond on sampled tp)] | Loss 100.971762 | MSE 0.020418 | Likelihood -102.092286 | KL fp 3.3362 | FP STD 0.0362|
+Epoch 0003 [Test seq (cond on sampled tp)] | Loss 85.520626 | MSE 0.017325 | Likelihood -86.624378 | KL fp 3.5423 | FP STD 0.0315|
+KL coef: 0.0
+Epoch 0003 [Test seq (cond on sampled tp)] | Best mse 0.017325|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:03,  2.01it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.75it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.67it/s] 50%|█████     | 4/8 [00:02<00:02,  1.75it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.67it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.66it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.69it/s]100%|██████████| 8/8 [00:04<00:00,  1.98it/s]100%|██████████| 8/8 [00:04<00:00,  1.81it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.76it/s]100%|██████████| 2/2 [00:00<00:00,  4.28it/s]100%|██████████| 2/2 [00:00<00:00,  4.34it/s]
+Experiment 44485
+Epoch 0004 [Train seq (cond on sampled tp)] | Loss 74.277064 | MSE 0.015080 | Likelihood -75.399324 | KL fp 3.5818 | FP STD 0.0323|
+Epoch 0004 [Test seq (cond on sampled tp)] | Loss 59.431763 | MSE 0.012107 | Likelihood -60.533993 | KL fp 3.8512 | FP STD 0.0269|
+KL coef: 0.0
+Epoch 0004 [Test seq (cond on sampled tp)] | Best mse 0.012107|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:03,  1.76it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.87it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.73it/s] 50%|█████     | 4/8 [00:02<00:02,  1.73it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.80it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.84it/s] 88%|████████▊ | 7/8 [00:03<00:00,  1.86it/s]100%|██████████| 8/8 [00:04<00:00,  2.13it/s]100%|██████████| 8/8 [00:04<00:00,  1.92it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.03it/s]100%|██████████| 2/2 [00:00<00:00,  3.88it/s]100%|██████████| 2/2 [00:00<00:00,  3.90it/s]
+Experiment 44485
+Epoch 0005 [Train seq (cond on sampled tp)] | Loss 52.687942 | MSE 0.010758 | Likelihood -53.791307 | KL fp 3.8133 | FP STD 0.0264|
+Epoch 0005 [Test seq (cond on sampled tp)] | Loss 41.955889 | MSE 0.008611 | Likelihood -43.055687 | KL fp 3.9065 | FP STD 0.0237|
+KL coef: 0.0
+Epoch 0005 [Test seq (cond on sampled tp)] | Best mse 0.008611|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:03,  1.98it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.84it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.75it/s] 50%|█████     | 4/8 [00:02<00:02,  1.63it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.68it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.73it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.72it/s]100%|██████████| 8/8 [00:04<00:00,  1.98it/s]100%|██████████| 8/8 [00:04<00:00,  1.82it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  3.98it/s]100%|██████████| 2/2 [00:00<00:00,  3.99it/s]100%|██████████| 2/2 [00:00<00:00,  3.98it/s]
+Experiment 44485
+Epoch 0006 [Train seq (cond on sampled tp)] | Loss 39.500851 | MSE 0.008122 | Likelihood -40.607508 | KL fp 3.9092 | FP STD 0.0249|
+Epoch 0006 [Test seq (cond on sampled tp)] | Loss 35.123140 | MSE 0.007245 | Likelihood -36.222950 | KL fp 3.9019 | FP STD 0.0243|
+KL coef: 0.0
+Epoch 0006 [Test seq (cond on sampled tp)] | Best mse 0.007245|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:03,  1.77it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.82it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.81it/s] 50%|█████     | 4/8 [00:02<00:02,  1.70it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.72it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.75it/s] 88%|████████▊ | 7/8 [00:03<00:00,  1.75it/s]100%|██████████| 8/8 [00:04<00:00,  2.01it/s]100%|██████████| 8/8 [00:04<00:00,  1.84it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.15it/s]100%|██████████| 2/2 [00:00<00:00,  4.26it/s]100%|██████████| 2/2 [00:00<00:00,  4.24it/s]
+Experiment 44485
+Epoch 0007 [Train seq (cond on sampled tp)] | Loss 34.109975 | MSE 0.007043 | Likelihood -35.213115 | KL fp 3.9472 | FP STD 0.0222|
+Epoch 0007 [Test seq (cond on sampled tp)] | Loss 31.409172 | MSE 0.006504 | Likelihood -32.518686 | KL fp 4.0994 | FP STD 0.0193|
+KL coef: 0.0
+Epoch 0007 [Test seq (cond on sampled tp)] | Best mse 0.006504|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.69it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.70it/s] 38%|███▊      | 3/8 [00:01<00:03,  1.60it/s] 50%|█████     | 4/8 [00:02<00:02,  1.57it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.66it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.69it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.61it/s]100%|██████████| 8/8 [00:04<00:00,  1.80it/s]100%|██████████| 8/8 [00:04<00:00,  1.70it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  5.31it/s]100%|██████████| 2/2 [00:00<00:00,  4.51it/s]100%|██████████| 2/2 [00:00<00:00,  4.61it/s]
+Experiment 44485
+Epoch 0008 [Train seq (cond on sampled tp)] | Loss 31.376014 | MSE 0.006496 | Likelihood -32.478608 | KL fp 4.0642 | FP STD 0.0197|
+Epoch 0008 [Test seq (cond on sampled tp)] | Loss 30.179558 | MSE 0.006256 | Likelihood -31.278539 | KL fp 4.2204 | FP STD 0.0170|
+KL coef: 0.0
+Epoch 0008 [Test seq (cond on sampled tp)] | Best mse 0.006256|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.58it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.65it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.74it/s] 50%|█████     | 4/8 [00:02<00:02,  1.76it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.76it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.76it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.67it/s]100%|██████████| 8/8 [00:04<00:00,  1.96it/s]100%|██████████| 8/8 [00:04<00:00,  1.80it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  5.68it/s]100%|██████████| 2/2 [00:00<00:00,  4.95it/s]100%|██████████| 2/2 [00:00<00:00,  5.04it/s]
+Experiment 44485
+Epoch 0009 [Train seq (cond on sampled tp)] | Loss 29.919033 | MSE 0.006204 | Likelihood -31.019895 | KL fp 4.2199 | FP STD 0.0166|
+Epoch 0009 [Test seq (cond on sampled tp)] | Loss 27.700479 | MSE 0.005760 | Likelihood -28.799534 | KL fp 4.2736 | FP STD 0.0154|
+KL coef: 0.0
+Epoch 0009 [Test seq (cond on sampled tp)] | Best mse 0.005760|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:03,  1.89it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.83it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.85it/s] 50%|█████     | 4/8 [00:02<00:02,  1.86it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.74it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.75it/s] 88%|████████▊ | 7/8 [00:03<00:00,  1.78it/s]100%|██████████| 8/8 [00:04<00:00,  1.98it/s]100%|██████████| 8/8 [00:04<00:00,  1.87it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.54it/s]100%|██████████| 2/2 [00:00<00:00,  4.31it/s]100%|██████████| 2/2 [00:00<00:00,  4.34it/s]
+Experiment 44485
+Epoch 0010 [Train seq (cond on sampled tp)] | Loss 28.021489 | MSE 0.005824 | Likelihood -29.121144 | KL fp 4.3647 | FP STD 0.0143|
+Epoch 0010 [Test seq (cond on sampled tp)] | Loss 26.171066 | MSE 0.005454 | Likelihood -27.270311 | KL fp 4.4637 | FP STD 0.0126|
+KL coef: 0.0
+Epoch 0010 [Test seq (cond on sampled tp)] | Best mse 0.005454|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:03,  1.76it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.86it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.82it/s] 50%|█████     | 4/8 [00:02<00:02,  1.67it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.67it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.73it/s] 88%|████████▊ | 7/8 [00:03<00:00,  1.77it/s]100%|██████████| 8/8 [00:04<00:00,  2.07it/s]100%|██████████| 8/8 [00:04<00:00,  1.86it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.59it/s]100%|██████████| 2/2 [00:00<00:00,  4.84it/s]100%|██████████| 2/2 [00:00<00:00,  4.79it/s]
+Experiment 44485
+Epoch 0011 [Train seq (cond on sampled tp)] | Loss 26.308192 | MSE 0.005482 | Likelihood -27.408394 | KL fp 4.4983 | FP STD 0.0123|
+Epoch 0011 [Test seq (cond on sampled tp)] | Loss 24.967587 | MSE 0.005213 | Likelihood -26.066774 | KL fp 4.4699 | FP STD 0.0122|
+KL coef: 0.0
+Epoch 0011 [Test seq (cond on sampled tp)] | Best mse 0.005213|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.72it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.71it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.68it/s] 50%|█████     | 4/8 [00:02<00:02,  1.65it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.71it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.76it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.76it/s]100%|██████████| 8/8 [00:04<00:00,  2.00it/s]100%|██████████| 8/8 [00:04<00:00,  1.82it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  3.90it/s]100%|██████████| 2/2 [00:00<00:00,  3.93it/s]100%|██████████| 2/2 [00:00<00:00,  3.92it/s]
+Experiment 44485
+Epoch 0012 [Train seq (cond on sampled tp)] | Loss 24.742818 | MSE 0.005169 | Likelihood -25.845530 | KL fp 4.4942 | FP STD 0.0123|
+Epoch 0012 [Test seq (cond on sampled tp)] | Loss 22.951595 | MSE 0.004810 | Likelihood -24.050409 | KL fp 4.4378 | FP STD 0.0129|
+KL coef: 0.0
+Epoch 0012 [Test seq (cond on sampled tp)] | Best mse 0.004810|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.58it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.67it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.72it/s] 50%|█████     | 4/8 [00:02<00:02,  1.70it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.71it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.67it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.72it/s]100%|██████████| 8/8 [00:04<00:00,  2.00it/s]100%|██████████| 8/8 [00:04<00:00,  1.80it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.98it/s]100%|██████████| 2/2 [00:00<00:00,  5.10it/s]100%|██████████| 2/2 [00:00<00:00,  5.07it/s]
+Experiment 44485
+Epoch 0013 [Train seq (cond on sampled tp)] | Loss 22.718532 | MSE 0.004764 | Likelihood -23.820980 | KL fp 4.5133 | FP STD 0.0122|
+Epoch 0013 [Test seq (cond on sampled tp)] | Loss 20.781774 | MSE 0.004376 | Likelihood -21.880617 | KL fp 4.4932 | FP STD 0.0121|
+KL coef: 0.0
+Epoch 0013 [Test seq (cond on sampled tp)] | Best mse 0.004376|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.52it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.62it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.68it/s] 50%|█████     | 4/8 [00:02<00:02,  1.69it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.73it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.74it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.78it/s]100%|██████████| 8/8 [00:04<00:00,  2.06it/s]100%|██████████| 8/8 [00:04<00:00,  1.82it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  5.22it/s]100%|██████████| 2/2 [00:00<00:00,  5.44it/s]100%|██████████| 2/2 [00:00<00:00,  5.40it/s]
+Experiment 44485
+Epoch 0014 [Train seq (cond on sampled tp)] | Loss 20.494289 | MSE 0.004319 | Likelihood -21.593122 | KL fp 4.5710 | FP STD 0.0113|
+Epoch 0014 [Test seq (cond on sampled tp)] | Loss 18.969831 | MSE 0.004014 | Likelihood -20.068671 | KL fp 4.6870 | FP STD 0.0100|
+KL coef: 0.0
+Epoch 0014 [Test seq (cond on sampled tp)] | Best mse 0.004014|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:03,  1.97it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.90it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.86it/s] 50%|█████     | 4/8 [00:02<00:02,  1.87it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.77it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.75it/s] 88%|████████▊ | 7/8 [00:03<00:00,  1.79it/s]100%|██████████| 8/8 [00:04<00:00,  2.02it/s]100%|██████████| 8/8 [00:04<00:00,  1.89it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  3.78it/s]100%|██████████| 2/2 [00:00<00:00,  4.01it/s]100%|██████████| 2/2 [00:00<00:00,  3.97it/s]
+Experiment 44485
+Epoch 0015 [Train seq (cond on sampled tp)] | Loss 18.790558 | MSE 0.003978 | Likelihood -19.889562 | KL fp 4.7286 | FP STD 0.0096|
+Epoch 0015 [Test seq (cond on sampled tp)] | Loss 17.321023 | MSE 0.003684 | Likelihood -18.419842 | KL fp 4.7092 | FP STD 0.0096|
+KL coef: 0.0
+Epoch 0015 [Test seq (cond on sampled tp)] | Best mse 0.003684|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:03,  1.78it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.69it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.69it/s] 50%|█████     | 4/8 [00:02<00:02,  1.63it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.63it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.64it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.68it/s]100%|██████████| 8/8 [00:04<00:00,  1.93it/s]100%|██████████| 8/8 [00:04<00:00,  1.76it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.66it/s]100%|██████████| 2/2 [00:00<00:00,  4.13it/s]100%|██████████| 2/2 [00:00<00:00,  4.20it/s]
+Experiment 44485
+Epoch 0016 [Train seq (cond on sampled tp)] | Loss 17.138730 | MSE 0.003648 | Likelihood -18.237539 | KL fp 4.7323 | FP STD 0.0095|
+Epoch 0016 [Test seq (cond on sampled tp)] | Loss 15.866976 | MSE 0.003393 | Likelihood -16.965629 | KL fp 4.7187 | FP STD 0.0094|
+KL coef: 0.0
+Epoch 0016 [Test seq (cond on sampled tp)] | Best mse 0.003393|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.51it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.58it/s] 38%|███▊      | 3/8 [00:01<00:03,  1.58it/s] 50%|█████     | 4/8 [00:02<00:02,  1.57it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.63it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.69it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.68it/s]100%|██████████| 8/8 [00:04<00:00,  1.99it/s]100%|██████████| 8/8 [00:04<00:00,  1.75it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.52it/s]100%|██████████| 2/2 [00:00<00:00,  5.09it/s]100%|██████████| 2/2 [00:00<00:00,  4.99it/s]
+Experiment 44485
+Epoch 0017 [Train seq (cond on sampled tp)] | Loss 15.725930 | MSE 0.003365 | Likelihood -16.825278 | KL fp 4.7459 | FP STD 0.0093|
+Epoch 0017 [Test seq (cond on sampled tp)] | Loss 14.533117 | MSE 0.003126 | Likelihood -15.631790 | KL fp 4.7529 | FP STD 0.0091|
+KL coef: 0.0
+Epoch 0017 [Test seq (cond on sampled tp)] | Best mse 0.003126|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.61it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.64it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.71it/s] 50%|█████     | 4/8 [00:02<00:02,  1.72it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.70it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.63it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.71it/s]100%|██████████| 8/8 [00:04<00:00,  1.98it/s]100%|██████████| 8/8 [00:04<00:00,  1.79it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.93it/s]100%|██████████| 2/2 [00:00<00:00,  5.36it/s]100%|██████████| 2/2 [00:00<00:00,  5.28it/s]
+Experiment 44485
+Epoch 0018 [Train seq (cond on sampled tp)] | Loss 14.509716 | MSE 0.003122 | Likelihood -15.608845 | KL fp 4.7683 | FP STD 0.0090|
+Epoch 0018 [Test seq (cond on sampled tp)] | Loss 13.563079 | MSE 0.002932 | Likelihood -14.661774 | KL fp 4.7865 | FP STD 0.0088|
+KL coef: 0.0
+Epoch 0018 [Test seq (cond on sampled tp)] | Best mse 0.002932|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.71it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.84it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.68it/s] 50%|█████     | 4/8 [00:02<00:02,  1.57it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.63it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.70it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.71it/s]100%|██████████| 8/8 [00:04<00:00,  1.92it/s]100%|██████████| 8/8 [00:04<00:00,  1.76it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  3.98it/s]100%|██████████| 2/2 [00:00<00:00,  4.21it/s]100%|██████████| 2/2 [00:00<00:00,  4.17it/s]
+Experiment 44485
+Epoch 0019 [Train seq (cond on sampled tp)] | Loss 13.481275 | MSE 0.002916 | Likelihood -14.580099 | KL fp 4.7861 | FP STD 0.0089|
+Epoch 0019 [Test seq (cond on sampled tp)] | Loss 12.747750 | MSE 0.002769 | Likelihood -13.846607 | KL fp 4.7691 | FP STD 0.0089|
+KL coef: 0.0
+Epoch 0019 [Test seq (cond on sampled tp)] | Best mse 0.002769|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.69it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.62it/s] 38%|███▊      | 3/8 [00:01<00:03,  1.63it/s] 50%|█████     | 4/8 [00:02<00:02,  1.69it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.65it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.66it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.70it/s]100%|██████████| 8/8 [00:04<00:00,  1.86it/s]100%|██████████| 8/8 [00:04<00:00,  1.74it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  5.18it/s]100%|██████████| 2/2 [00:00<00:00,  4.59it/s]100%|██████████| 2/2 [00:00<00:00,  4.66it/s]
+Experiment 44485
+Epoch 0020 [Train seq (cond on sampled tp)] | Loss 12.660952 | MSE 0.002752 | Likelihood -13.760255 | KL fp 4.7024 | FP STD 0.0095|
+Epoch 0020 [Test seq (cond on sampled tp)] | Loss 11.927346 | MSE 0.002605 | Likelihood -13.025984 | KL fp 4.6707 | FP STD 0.0097|
+KL coef: 0.0
+Epoch 0020 [Test seq (cond on sampled tp)] | Best mse 0.002605|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:03,  1.76it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.87it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.85it/s] 50%|█████     | 4/8 [00:02<00:02,  1.83it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.75it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.78it/s] 88%|████████▊ | 7/8 [00:03<00:00,  1.82it/s]100%|██████████| 8/8 [00:04<00:00,  2.09it/s]100%|██████████| 8/8 [00:04<00:00,  1.91it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.42it/s]100%|██████████| 2/2 [00:00<00:00,  4.55it/s]100%|██████████| 2/2 [00:00<00:00,  4.52it/s]
+Experiment 44485
+Epoch 0021 [Train seq (cond on sampled tp)] | Loss 11.830460 | MSE 0.002586 | Likelihood -12.929408 | KL fp 4.6635 | FP STD 0.0100|
+Epoch 0021 [Test seq (cond on sampled tp)] | Loss 11.414692 | MSE 0.002503 | Likelihood -12.513544 | KL fp 4.6533 | FP STD 0.0101|
+KL coef: 0.0
+Epoch 0021 [Test seq (cond on sampled tp)] | Best mse 0.002503|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:03,  1.79it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.84it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.89it/s] 50%|█████     | 4/8 [00:02<00:02,  1.74it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.78it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.84it/s] 88%|████████▊ | 7/8 [00:03<00:00,  1.86it/s]100%|██████████| 8/8 [00:04<00:00,  2.18it/s]100%|██████████| 8/8 [00:04<00:00,  1.94it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  5.11it/s]100%|██████████| 2/2 [00:00<00:00,  5.16it/s]100%|██████████| 2/2 [00:00<00:00,  5.14it/s]
+Experiment 44485
+Epoch 0022 [Train seq (cond on sampled tp)] | Loss 11.226569 | MSE 0.002465 | Likelihood -12.325744 | KL fp 4.6405 | FP STD 0.0102|
+Epoch 0022 [Test seq (cond on sampled tp)] | Loss 10.860573 | MSE 0.002392 | Likelihood -11.959291 | KL fp 4.6457 | FP STD 0.0101|
+KL coef: 0.0
+Epoch 0022 [Test seq (cond on sampled tp)] | Best mse 0.002392|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:03,  1.88it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.96it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.74it/s] 50%|█████     | 4/8 [00:02<00:02,  1.72it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.63it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.69it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.73it/s]100%|██████████| 8/8 [00:04<00:00,  1.94it/s]100%|██████████| 8/8 [00:04<00:00,  1.81it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.31it/s]100%|██████████| 2/2 [00:00<00:00,  4.14it/s]100%|██████████| 2/2 [00:00<00:00,  4.16it/s]
+Experiment 44485
+Epoch 0023 [Train seq (cond on sampled tp)] | Loss 10.645302 | MSE 0.002349 | Likelihood -11.743980 | KL fp 4.6381 | FP STD 0.0102|
+Epoch 0023 [Test seq (cond on sampled tp)] | Loss 10.199548 | MSE 0.002260 | Likelihood -11.298234 | KL fp 4.6679 | FP STD 0.0099|
+KL coef: 0.0
+Epoch 0023 [Test seq (cond on sampled tp)] | Best mse 0.002260|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.69it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.70it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.77it/s] 50%|█████     | 4/8 [00:02<00:02,  1.77it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.71it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.77it/s] 88%|████████▊ | 7/8 [00:03<00:00,  1.79it/s]100%|██████████| 8/8 [00:04<00:00,  1.97it/s]100%|██████████| 8/8 [00:04<00:00,  1.83it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.15it/s]100%|██████████| 2/2 [00:00<00:00,  4.02it/s]100%|██████████| 2/2 [00:00<00:00,  4.04it/s]
+Experiment 44485
+Epoch 0024 [Train seq (cond on sampled tp)] | Loss 10.062523 | MSE 0.002232 | Likelihood -11.161657 | KL fp 4.6238 | FP STD 0.0102|
+Epoch 0024 [Test seq (cond on sampled tp)] | Loss 9.682084 | MSE 0.002156 | Likelihood -10.781044 | KL fp 4.6727 | FP STD 0.0097|
+KL coef: 0.0
+Epoch 0024 [Test seq (cond on sampled tp)] | Best mse 0.002156|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.55it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.62it/s] 38%|███▊      | 3/8 [00:01<00:03,  1.63it/s] 50%|█████     | 4/8 [00:02<00:02,  1.60it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.63it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.63it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.62it/s]100%|██████████| 8/8 [00:04<00:00,  1.87it/s]100%|██████████| 8/8 [00:04<00:00,  1.71it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.20it/s]100%|██████████| 2/2 [00:00<00:00,  4.27it/s]100%|██████████| 2/2 [00:00<00:00,  4.25it/s]
+Experiment 44485
+Epoch 0025 [Train seq (cond on sampled tp)] | Loss 9.398492 | MSE 0.002099 | Likelihood -10.497451 | KL fp 4.6499 | FP STD 0.0098|
+Epoch 0025 [Test seq (cond on sampled tp)] | Loss 8.879797 | MSE 0.001996 | Likelihood -9.978525 | KL fp 4.6925 | FP STD 0.0093|
+KL coef: 0.0
+Epoch 0025 [Test seq (cond on sampled tp)] | Best mse 0.001996|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:03,  1.79it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.82it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.77it/s] 50%|█████     | 4/8 [00:02<00:02,  1.70it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.62it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.63it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.70it/s]100%|██████████| 8/8 [00:04<00:00,  1.87it/s]100%|██████████| 8/8 [00:04<00:00,  1.76it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  5.27it/s]100%|██████████| 2/2 [00:00<00:00,  5.31it/s]100%|██████████| 2/2 [00:00<00:00,  5.29it/s]
+Experiment 44485
+Epoch 0026 [Train seq (cond on sampled tp)] | Loss 8.759935 | MSE 0.001972 | Likelihood -9.859199 | KL fp 4.6820 | FP STD 0.0096|
+Epoch 0026 [Test seq (cond on sampled tp)] | Loss 8.257711 | MSE 0.001871 | Likelihood -9.356391 | KL fp 4.7375 | FP STD 0.0089|
+KL coef: 0.0
+Epoch 0026 [Test seq (cond on sampled tp)] | Best mse 0.001871|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.53it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.53it/s] 38%|███▊      | 3/8 [00:01<00:03,  1.62it/s] 50%|█████     | 4/8 [00:02<00:02,  1.61it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.61it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.53it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.61it/s]100%|██████████| 8/8 [00:04<00:00,  1.91it/s]100%|██████████| 8/8 [00:04<00:00,  1.69it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  5.02it/s]100%|██████████| 2/2 [00:00<00:00,  5.26it/s]100%|██████████| 2/2 [00:00<00:00,  5.22it/s]
+Experiment 44485
+Epoch 0027 [Train seq (cond on sampled tp)] | Loss 8.115034 | MSE 0.001843 | Likelihood -9.213744 | KL fp 4.7173 | FP STD 0.0091|
+Epoch 0027 [Test seq (cond on sampled tp)] | Loss 7.589031 | MSE 0.001738 | Likelihood -8.687765 | KL fp 4.7061 | FP STD 0.0091|
+KL coef: 0.0
+Epoch 0027 [Test seq (cond on sampled tp)] | Best mse 0.001738|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:03,  1.88it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.80it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.81it/s] 50%|█████     | 4/8 [00:02<00:02,  1.81it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.75it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.72it/s] 88%|████████▊ | 7/8 [00:03<00:00,  1.75it/s]100%|██████████| 8/8 [00:04<00:00,  1.93it/s]100%|██████████| 8/8 [00:04<00:00,  1.83it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  5.46it/s]100%|██████████| 2/2 [00:00<00:00,  5.47it/s]100%|██████████| 2/2 [00:00<00:00,  5.45it/s]
+Experiment 44485
+Epoch 0028 [Train seq (cond on sampled tp)] | Loss 7.443924 | MSE 0.001709 | Likelihood -8.543239 | KL fp 4.6974 | FP STD 0.0093|
+Epoch 0028 [Test seq (cond on sampled tp)] | Loss 7.018169 | MSE 0.001623 | Likelihood -8.117065 | KL fp 4.7206 | FP STD 0.0090|
+KL coef: 0.0
+Epoch 0028 [Test seq (cond on sampled tp)] | Best mse 0.001623|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.54it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.64it/s] 38%|███▊      | 3/8 [00:01<00:03,  1.60it/s] 50%|█████     | 4/8 [00:02<00:02,  1.66it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.64it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.65it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.59it/s]100%|██████████| 8/8 [00:04<00:00,  1.75it/s]100%|██████████| 8/8 [00:04<00:00,  1.67it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.33it/s]100%|██████████| 2/2 [00:00<00:00,  4.25it/s]100%|██████████| 2/2 [00:00<00:00,  4.25it/s]
+Experiment 44485
+Epoch 0029 [Train seq (cond on sampled tp)] | Loss 6.804027 | MSE 0.001581 | Likelihood -7.902728 | KL fp 4.7259 | FP STD 0.0092|
+Epoch 0029 [Test seq (cond on sampled tp)] | Loss 6.272943 | MSE 0.001474 | Likelihood -7.371682 | KL fp 4.7486 | FP STD 0.0088|
+KL coef: 0.0
+Epoch 0029 [Test seq (cond on sampled tp)] | Best mse 0.001474|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.59it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.64it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.67it/s] 50%|█████     | 4/8 [00:02<00:02,  1.60it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.66it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.68it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.74it/s]100%|██████████| 8/8 [00:04<00:00,  2.05it/s]100%|██████████| 8/8 [00:04<00:00,  1.80it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  5.25it/s]100%|██████████| 2/2 [00:00<00:00,  5.18it/s]100%|██████████| 2/2 [00:00<00:00,  5.18it/s]
+Experiment 44485
+Epoch 0030 [Train seq (cond on sampled tp)] | Loss 6.103618 | MSE 0.001441 | Likelihood -7.202607 | KL fp 4.7662 | FP STD 0.0088|
+Epoch 0030 [Test seq (cond on sampled tp)] | Loss 5.733851 | MSE 0.001367 | Likelihood -6.832572 | KL fp 4.7805 | FP STD 0.0086|
+KL coef: 0.0
+Epoch 0030 [Test seq (cond on sampled tp)] | Best mse 0.001367|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.65it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.77it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.84it/s] 50%|█████     | 4/8 [00:02<00:02,  1.86it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.75it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.77it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.69it/s]100%|██████████| 8/8 [00:04<00:00,  1.90it/s]100%|██████████| 8/8 [00:04<00:00,  1.81it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.85it/s]100%|██████████| 2/2 [00:00<00:00,  4.54it/s]100%|██████████| 2/2 [00:00<00:00,  4.58it/s]
+Experiment 44485
+Epoch 0031 [Train seq (cond on sampled tp)] | Loss 5.480201 | MSE 0.001316 | Likelihood -6.579073 | KL fp 4.7596 | FP STD 0.0089|
+Epoch 0031 [Test seq (cond on sampled tp)] | Loss 5.172419 | MSE 0.001254 | Likelihood -6.271053 | KL fp 4.7659 | FP STD 0.0086|
+KL coef: 0.0
+Epoch 0031 [Test seq (cond on sampled tp)] | Best mse 0.001254|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.54it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.75it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.77it/s] 50%|█████     | 4/8 [00:02<00:02,  1.81it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.84it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.84it/s] 88%|████████▊ | 7/8 [00:03<00:00,  1.80it/s]100%|██████████| 8/8 [00:04<00:00,  2.09it/s]100%|██████████| 8/8 [00:04<00:00,  1.90it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.44it/s]100%|██████████| 2/2 [00:00<00:00,  4.90it/s]100%|██████████| 2/2 [00:00<00:00,  4.82it/s]
+Experiment 44485
+Epoch 0032 [Train seq (cond on sampled tp)] | Loss 4.912373 | MSE 0.001202 | Likelihood -6.011396 | KL fp 4.7508 | FP STD 0.0089|
+Epoch 0032 [Test seq (cond on sampled tp)] | Loss 4.528126 | MSE 0.001125 | Likelihood -5.626833 | KL fp 4.8297 | FP STD 0.0082|
+KL coef: 0.0
+Epoch 0032 [Test seq (cond on sampled tp)] | Best mse 0.001125|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:03,  1.88it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.93it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.92it/s] 50%|█████     | 4/8 [00:02<00:02,  1.90it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.87it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.87it/s] 88%|████████▊ | 7/8 [00:03<00:00,  1.82it/s]100%|██████████| 8/8 [00:04<00:00,  2.06it/s]100%|██████████| 8/8 [00:04<00:00,  1.95it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.15it/s]100%|██████████| 2/2 [00:00<00:00,  4.71it/s]100%|██████████| 2/2 [00:00<00:00,  4.61it/s]
+Experiment 44485
+Epoch 0033 [Train seq (cond on sampled tp)] | Loss 4.318312 | MSE 0.001083 | Likelihood -5.417040 | KL fp 4.7783 | FP STD 0.0087|
+Epoch 0033 [Test seq (cond on sampled tp)] | Loss 4.262279 | MSE 0.001072 | Likelihood -5.361028 | KL fp 4.7651 | FP STD 0.0088|
+KL coef: 0.0
+Epoch 0033 [Test seq (cond on sampled tp)] | Best mse 0.001072|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:03,  1.86it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.71it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.69it/s] 50%|█████     | 4/8 [00:02<00:02,  1.70it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.71it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.77it/s] 88%|████████▊ | 7/8 [00:03<00:00,  1.78it/s]100%|██████████| 8/8 [00:04<00:00,  1.99it/s]100%|██████████| 8/8 [00:04<00:00,  1.83it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.55it/s]100%|██████████| 2/2 [00:00<00:00,  4.16it/s]100%|██████████| 2/2 [00:00<00:00,  4.21it/s]
+Experiment 44485
+Epoch 0034 [Train seq (cond on sampled tp)] | Loss 3.957500 | MSE 0.001011 | Likelihood -5.056244 | KL fp 4.7933 | FP STD 0.0085|
+Epoch 0034 [Test seq (cond on sampled tp)] | Loss 3.373535 | MSE 0.000894 | Likelihood -4.472253 | KL fp 4.8455 | FP STD 0.0080|
+KL coef: 0.0
+Epoch 0034 [Test seq (cond on sampled tp)] | Best mse 0.000894|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.73it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.82it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.73it/s] 50%|█████     | 4/8 [00:02<00:02,  1.75it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.67it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.69it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.68it/s]100%|██████████| 8/8 [00:04<00:00,  1.96it/s]100%|██████████| 8/8 [00:04<00:00,  1.80it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.67it/s]100%|██████████| 2/2 [00:00<00:00,  4.71it/s]100%|██████████| 2/2 [00:00<00:00,  4.70it/s]
+Experiment 44485
+Epoch 0035 [Train seq (cond on sampled tp)] | Loss 3.396574 | MSE 0.000899 | Likelihood -4.495311 | KL fp 4.8511 | FP STD 0.0080|
+Epoch 0035 [Test seq (cond on sampled tp)] | Loss 2.994929 | MSE 0.000819 | Likelihood -4.093637 | KL fp 4.9043 | FP STD 0.0076|
+KL coef: 0.0
+Epoch 0035 [Test seq (cond on sampled tp)] | Best mse 0.000819|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.63it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.64it/s] 38%|███▊      | 3/8 [00:01<00:03,  1.62it/s] 50%|█████     | 4/8 [00:02<00:02,  1.74it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.70it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.68it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.74it/s]100%|██████████| 8/8 [00:04<00:00,  1.89it/s]100%|██████████| 8/8 [00:04<00:00,  1.76it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.31it/s]100%|██████████| 2/2 [00:00<00:00,  5.02it/s]100%|██████████| 2/2 [00:00<00:00,  4.89it/s]
+Experiment 44485
+Epoch 0036 [Train seq (cond on sampled tp)] | Loss 3.016882 | MSE 0.000823 | Likelihood -4.115566 | KL fp 4.9120 | FP STD 0.0075|
+Epoch 0036 [Test seq (cond on sampled tp)] | Loss 2.780214 | MSE 0.000776 | Likelihood -3.878918 | KL fp 4.9373 | FP STD 0.0073|
+KL coef: 0.0
+Epoch 0036 [Test seq (cond on sampled tp)] | Best mse 0.000776|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:03,  2.01it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.78it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.77it/s] 50%|█████     | 4/8 [00:02<00:02,  1.76it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.82it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.85it/s] 88%|████████▊ | 7/8 [00:03<00:00,  1.85it/s]100%|██████████| 8/8 [00:04<00:00,  2.12it/s]100%|██████████| 8/8 [00:04<00:00,  1.93it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.45it/s]100%|██████████| 2/2 [00:00<00:00,  4.60it/s]100%|██████████| 2/2 [00:00<00:00,  4.57it/s]
+Experiment 44485
+Epoch 0037 [Train seq (cond on sampled tp)] | Loss 2.755331 | MSE 0.000771 | Likelihood -3.854144 | KL fp 4.9260 | FP STD 0.0074|
+Epoch 0037 [Test seq (cond on sampled tp)] | Loss 2.422257 | MSE 0.000704 | Likelihood -3.520913 | KL fp 4.8880 | FP STD 0.0076|
+KL coef: 0.0
+Epoch 0037 [Test seq (cond on sampled tp)] | Best mse 0.000704|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.74it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.77it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.82it/s] 50%|█████     | 4/8 [00:02<00:02,  1.87it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.79it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.83it/s] 88%|████████▊ | 7/8 [00:03<00:00,  1.83it/s]100%|██████████| 8/8 [00:04<00:00,  2.07it/s]100%|██████████| 8/8 [00:04<00:00,  1.91it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  3.97it/s]100%|██████████| 2/2 [00:00<00:00,  3.95it/s]100%|██████████| 2/2 [00:00<00:00,  3.95it/s]
+Experiment 44485
+Epoch 0038 [Train seq (cond on sampled tp)] | Loss 2.378297 | MSE 0.000695 | Likelihood -3.476961 | KL fp 4.9642 | FP STD 0.0071|
+Epoch 0038 [Test seq (cond on sampled tp)] | Loss 2.350143 | MSE 0.000690 | Likelihood -3.448845 | KL fp 4.9144 | FP STD 0.0074|
+KL coef: 0.0
+Epoch 0038 [Test seq (cond on sampled tp)] | Best mse 0.000690|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.44it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.54it/s] 38%|███▊      | 3/8 [00:01<00:03,  1.60it/s] 50%|█████     | 4/8 [00:02<00:02,  1.67it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.70it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.65it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.69it/s]100%|██████████| 8/8 [00:04<00:00,  1.90it/s]100%|██████████| 8/8 [00:04<00:00,  1.73it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.45it/s]100%|██████████| 2/2 [00:00<00:00,  4.17it/s]100%|██████████| 2/2 [00:00<00:00,  4.20it/s]
+Experiment 44485
+Epoch 0039 [Train seq (cond on sampled tp)] | Loss 2.281105 | MSE 0.000676 | Likelihood -3.380066 | KL fp 4.9576 | FP STD 0.0071|
+Epoch 0039 [Test seq (cond on sampled tp)] | Loss 2.425882 | MSE 0.000705 | Likelihood -3.524554 | KL fp 4.9843 | FP STD 0.0068|
+KL coef: 0.0
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.69it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.63it/s] 38%|███▊      | 3/8 [00:01<00:03,  1.53it/s] 50%|█████     | 4/8 [00:02<00:02,  1.59it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.54it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.55it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.53it/s]100%|██████████| 8/8 [00:04<00:00,  1.81it/s]100%|██████████| 8/8 [00:04<00:00,  1.65it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  5.01it/s]100%|██████████| 2/2 [00:00<00:00,  5.59it/s]100%|██████████| 2/2 [00:00<00:00,  5.49it/s]
+Experiment 44485
+Epoch 0040 [Train seq (cond on sampled tp)] | Loss 2.149380 | MSE 0.000650 | Likelihood -3.248067 | KL fp 5.0111 | FP STD 0.0068|
+Epoch 0040 [Test seq (cond on sampled tp)] | Loss 2.115547 | MSE 0.000643 | Likelihood -3.214185 | KL fp 5.0765 | FP STD 0.0063|
+KL coef: 0.0
+Epoch 0040 [Test seq (cond on sampled tp)] | Best mse 0.000643|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.69it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.73it/s] 38%|███▊      | 3/8 [00:01<00:03,  1.64it/s] 50%|█████     | 4/8 [00:02<00:02,  1.64it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.72it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.75it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.79it/s]100%|██████████| 8/8 [00:04<00:00,  2.10it/s]100%|██████████| 8/8 [00:04<00:00,  1.85it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.39it/s]100%|██████████| 2/2 [00:00<00:00,  4.51it/s]100%|██████████| 2/2 [00:00<00:00,  4.49it/s]
+Experiment 44485
+Epoch 0041 [Train seq (cond on sampled tp)] | Loss 2.034793 | MSE 0.000627 | Likelihood -3.133544 | KL fp 5.0242 | FP STD 0.0067|
+Epoch 0041 [Test seq (cond on sampled tp)] | Loss 1.957591 | MSE 0.000611 | Likelihood -3.056230 | KL fp 5.0878 | FP STD 0.0062|
+KL coef: 0.0
+Epoch 0041 [Test seq (cond on sampled tp)] | Best mse 0.000611|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:03,  1.77it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.69it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.72it/s] 50%|█████     | 4/8 [00:02<00:02,  1.77it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.69it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.71it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.77it/s]100%|██████████| 8/8 [00:04<00:00,  2.02it/s]100%|██████████| 8/8 [00:04<00:00,  1.83it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.85it/s]100%|██████████| 2/2 [00:00<00:00,  4.40it/s]100%|██████████| 2/2 [00:00<00:00,  4.46it/s]
+Experiment 44485
+Epoch 0042 [Train seq (cond on sampled tp)] | Loss 1.809475 | MSE 0.000582 | Likelihood -2.908206 | KL fp 5.0959 | FP STD 0.0063|
+Epoch 0042 [Test seq (cond on sampled tp)] | Loss 1.667093 | MSE 0.000553 | Likelihood -2.765722 | KL fp 5.1092 | FP STD 0.0061|
+KL coef: 0.0
+Epoch 0042 [Test seq (cond on sampled tp)] | Best mse 0.000553|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.49it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.57it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.70it/s] 50%|█████     | 4/8 [00:02<00:02,  1.63it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.65it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.61it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.59it/s]100%|██████████| 8/8 [00:04<00:00,  1.82it/s]100%|██████████| 8/8 [00:04<00:00,  1.69it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  5.42it/s]100%|██████████| 2/2 [00:00<00:00,  5.43it/s]100%|██████████| 2/2 [00:00<00:00,  5.42it/s]
+Experiment 44485
+Epoch 0043 [Train seq (cond on sampled tp)] | Loss 1.611530 | MSE 0.000542 | Likelihood -2.710218 | KL fp 5.1069 | FP STD 0.0062|
+Epoch 0043 [Test seq (cond on sampled tp)] | Loss 1.580623 | MSE 0.000536 | Likelihood -2.679242 | KL fp 5.1095 | FP STD 0.0061|
+KL coef: 0.0
+Epoch 0043 [Test seq (cond on sampled tp)] | Best mse 0.000536|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.65it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.63it/s] 38%|███▊      | 3/8 [00:01<00:03,  1.66it/s] 50%|█████     | 4/8 [00:02<00:02,  1.60it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.69it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.75it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.77it/s]100%|██████████| 8/8 [00:04<00:00,  2.02it/s]100%|██████████| 8/8 [00:04<00:00,  1.80it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.64it/s]100%|██████████| 2/2 [00:00<00:00,  4.86it/s]100%|██████████| 2/2 [00:00<00:00,  4.82it/s]
+Experiment 44485
+Epoch 0044 [Train seq (cond on sampled tp)] | Loss 1.471560 | MSE 0.000514 | Likelihood -2.570293 | KL fp 5.0982 | FP STD 0.0062|
+Epoch 0044 [Test seq (cond on sampled tp)] | Loss 1.590347 | MSE 0.000538 | Likelihood -2.688968 | KL fp 5.0749 | FP STD 0.0063|
+KL coef: 0.0
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.55it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.54it/s] 38%|███▊      | 3/8 [00:01<00:03,  1.50it/s] 50%|█████     | 4/8 [00:02<00:02,  1.60it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.61it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.59it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.71it/s]100%|██████████| 8/8 [00:04<00:00,  1.93it/s]100%|██████████| 8/8 [00:04<00:00,  1.71it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  3.89it/s]100%|██████████| 2/2 [00:00<00:00,  4.22it/s]100%|██████████| 2/2 [00:00<00:00,  4.16it/s]
+Experiment 44485
+Epoch 0045 [Train seq (cond on sampled tp)] | Loss 1.551475 | MSE 0.000530 | Likelihood -2.650131 | KL fp 5.0524 | FP STD 0.0065|
+Epoch 0045 [Test seq (cond on sampled tp)] | Loss 1.528591 | MSE 0.000525 | Likelihood -2.627216 | KL fp 5.1219 | FP STD 0.0061|
+KL coef: 0.0
+Epoch 0045 [Test seq (cond on sampled tp)] | Best mse 0.000525|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.61it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.72it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.76it/s] 50%|█████     | 4/8 [00:02<00:02,  1.74it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.75it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.65it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.60it/s]100%|██████████| 8/8 [00:04<00:00,  1.74it/s]100%|██████████| 8/8 [00:04<00:00,  1.71it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  3.88it/s]100%|██████████| 2/2 [00:00<00:00,  4.58it/s]100%|██████████| 2/2 [00:00<00:00,  4.45it/s]
+Experiment 44485
+Epoch 0046 [Train seq (cond on sampled tp)] | Loss 1.324965 | MSE 0.000485 | Likelihood -2.423643 | KL fp 5.1310 | FP STD 0.0060|
+Epoch 0046 [Test seq (cond on sampled tp)] | Loss 1.317725 | MSE 0.000483 | Likelihood -2.416358 | KL fp 5.1107 | FP STD 0.0060|
+KL coef: 0.0
+Epoch 0046 [Test seq (cond on sampled tp)] | Best mse 0.000483|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.66it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.59it/s] 38%|███▊      | 3/8 [00:01<00:03,  1.57it/s] 50%|█████     | 4/8 [00:02<00:02,  1.57it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.55it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.57it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.62it/s]100%|██████████| 8/8 [00:04<00:00,  1.92it/s]100%|██████████| 8/8 [00:04<00:00,  1.70it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  5.45it/s]100%|██████████| 2/2 [00:00<00:00,  5.66it/s]100%|██████████| 2/2 [00:00<00:00,  5.62it/s]
+Experiment 44485
+Epoch 0047 [Train seq (cond on sampled tp)] | Loss 1.224686 | MSE 0.000465 | Likelihood -2.323371 | KL fp 5.1518 | FP STD 0.0059|
+Epoch 0047 [Test seq (cond on sampled tp)] | Loss 1.342344 | MSE 0.000488 | Likelihood -2.441018 | KL fp 5.1629 | FP STD 0.0058|
+KL coef: 0.0
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:03,  1.80it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.83it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.83it/s] 50%|█████     | 4/8 [00:02<00:02,  1.82it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.80it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.79it/s] 88%|████████▊ | 7/8 [00:03<00:00,  1.83it/s]100%|██████████| 8/8 [00:04<00:00,  2.13it/s]100%|██████████| 8/8 [00:04<00:00,  1.93it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.38it/s]100%|██████████| 2/2 [00:00<00:00,  5.00it/s]100%|██████████| 2/2 [00:00<00:00,  4.89it/s]
+Experiment 44485
+Epoch 0048 [Train seq (cond on sampled tp)] | Loss 1.153067 | MSE 0.000450 | Likelihood -2.251719 | KL fp 5.1939 | FP STD 0.0057|
+Epoch 0048 [Test seq (cond on sampled tp)] | Loss 1.248746 | MSE 0.000469 | Likelihood -2.347374 | KL fp 5.1388 | FP STD 0.0058|
+KL coef: 0.0
+Epoch 0048 [Test seq (cond on sampled tp)] | Best mse 0.000469|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:04,  1.61it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.63it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.78it/s] 50%|█████     | 4/8 [00:02<00:02,  1.73it/s] 62%|██████▎   | 5/8 [00:02<00:01,  1.79it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.78it/s] 88%|████████▊ | 7/8 [00:03<00:00,  1.78it/s]100%|██████████| 8/8 [00:04<00:00,  2.09it/s]100%|██████████| 8/8 [00:04<00:00,  1.87it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  5.41it/s]100%|██████████| 2/2 [00:00<00:00,  5.31it/s]100%|██████████| 2/2 [00:00<00:00,  5.32it/s]
+Experiment 44485
+Epoch 0049 [Train seq (cond on sampled tp)] | Loss 1.112519 | MSE 0.000442 | Likelihood -2.211179 | KL fp 5.1714 | FP STD 0.0057|
+Epoch 0049 [Test seq (cond on sampled tp)] | Loss 1.142756 | MSE 0.000448 | Likelihood -2.241381 | KL fp 5.1773 | FP STD 0.0056|
+KL coef: 0.0
+Epoch 0049 [Test seq (cond on sampled tp)] | Best mse 0.000448|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:03,  1.81it/s] 25%|██▌       | 2/8 [00:01<00:03,  1.67it/s] 38%|███▊      | 3/8 [00:01<00:02,  1.70it/s] 50%|█████     | 4/8 [00:02<00:02,  1.63it/s] 62%|██████▎   | 5/8 [00:03<00:01,  1.56it/s] 75%|███████▌  | 6/8 [00:03<00:01,  1.53it/s] 88%|████████▊ | 7/8 [00:04<00:00,  1.50it/s]100%|██████████| 8/8 [00:04<00:00,  1.70it/s]100%|██████████| 8/8 [00:04<00:00,  1.63it/s]
+Computing loss... 
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [00:00<00:00,  4.54it/s]100%|██████████| 2/2 [00:00<00:00,  4.59it/s]100%|██████████| 2/2 [00:00<00:00,  4.57it/s]
+Experiment 44485
+Epoch 0050 [Train seq (cond on sampled tp)] | Loss 1.090388 | MSE 0.000438 | Likelihood -2.189093 | KL fp 5.1879 | FP STD 0.0056|
+Epoch 0050 [Test seq (cond on sampled tp)] | Loss 1.020709 | MSE 0.000424 | Likelihood -2.119338 | KL fp 5.2807 | FP STD 0.0052|
+KL coef: 0.0
+Epoch 0050 [Test seq (cond on sampled tp)] | Best mse 0.000424|
+data: spring, model: Latent-ODE, sample: 0.6, mode:interp

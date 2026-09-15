@@ -9,6 +9,7 @@ experiments_odernn/
 experiments_latentode/
 experiments_edgegnn/
 experiments_rnnnri/
+experiments_gilode/
 logs/
 run_logs/*_driver.log
 plot/
