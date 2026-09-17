@@ -56,7 +56,7 @@ args = parser.parse_args()
 assert (int(args.rec_dims % args.n_heads) == 0)
 
 if args.data == "spring":
-    args.dataset = 'data/example_data'
+    args.dataset = 'data/spring'
     args.suffix = '_springs5'
     args.total_ode_step = 60
 elif args.data == "charged":
@@ -147,7 +147,7 @@ if __name__ == '__main__':
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 1000, eta_min=1e-9)
 
-    best_test_mse = np.inf
+    best_val_mse = np.inf
     n_iters_to_viz = 1
 
     def train_single_batch(model, batch_dict_encoder, batch_dict_decoder, batch_dict_graph, kl_coef):
@@ -195,34 +195,53 @@ if __name__ == '__main__':
             np.mean(kl_first_p_list), np.mean(std_first_p_list))
         return message_train, kl_coef
 
+    best_ckpt_path = None
+
     for epo in range(1, args.niters + 1):
         message_train, kl_coef = train_epoch(epo)
 
         if epo % n_iters_to_viz == 0:
             model.eval()
+            val_res = compute_loss_all_batches(model, val_encoder, val_graph, val_decoder,
+                                                n_batches=val_batch, device=device,
+                                                n_traj_samples=3, kl_coef=kl_coef)
+            # Diagnostic only, never used for checkpoint selection -- see run_models_corrected.py.
             test_res = compute_loss_all_batches(model, test_encoder, test_graph, test_decoder,
                                                 n_batches=test_batch, device=device,
                                                 n_traj_samples=3, kl_coef=kl_coef)
 
-            message_test = 'Epoch {:04d} [Test seq (cond on sampled tp)] | Loss {:.6f} | MSE {:.6F} | Likelihood {:.6f} | KL fp {:.4f} | FP STD {:.4f}|'.format(
+            message_val = 'Epoch {:04d} [Val seq (cond on sampled tp)] | Loss {:.6f} | MSE {:.6F} | Likelihood {:.6f} | KL fp {:.4f} | FP STD {:.4f}|'.format(
+                epo, val_res["loss"], val_res["mse"], val_res["likelihood"],
+                val_res["kl_first_p"], val_res["std_first_p"])
+            message_test = 'Epoch {:04d} [Test seq, diagnostic only] | Loss {:.6f} | MSE {:.6F} | Likelihood {:.6f} | KL fp {:.4f} | FP STD {:.4f}|'.format(
                 epo, test_res["loss"], test_res["mse"], test_res["likelihood"],
                 test_res["kl_first_p"], test_res["std_first_p"])
 
             logger.info("Experiment " + str(experimentID))
             logger.info(message_train)
+            logger.info(message_val)
             logger.info(message_test)
             logger.info("KL coef: {}".format(kl_coef))
             print("data: %s, encoder: %s, sample: %s, mode:%s" % (
                 args.data, args.z0_encoder, str(args.sample_percent_train), args.mode))
 
-            if test_res["mse"] < best_test_mse:
-                best_test_mse = test_res["mse"]
-                message_best = 'Epoch {:04d} [Test seq (cond on sampled tp)] | Best mse {:.6f}|'.format(epo, best_test_mse)
+            if val_res["mse"] < best_val_mse:
+                best_val_mse = val_res["mse"]
+                message_best = 'Epoch {:04d} [Val seq (cond on sampled tp)] | Best val mse {:.6f}|'.format(epo, best_val_mse)
                 logger.info(message_best)
-                ckpt_path = os.path.join(args.save, "experiment_" + str(
+                best_ckpt_path = os.path.join(args.save, "experiment_" + str(
                     experimentID) + "_" + args.z0_encoder + "_" + args.data + "_" + str(
-                    args.sample_percent_train) + "_" + args.mode + "_epoch_" + str(epo) + "_mse_" + str(
-                    best_test_mse) + '.ckpt')
-                torch.save({'args': args, 'state_dict': model.state_dict()}, ckpt_path)
+                    args.sample_percent_train) + "_" + args.mode + "_epoch_" + str(epo) + "_valmse_" + str(
+                    best_val_mse) + '.ckpt')
+                torch.save({'args': args, 'state_dict': model.state_dict()}, best_ckpt_path)
 
             torch.cuda.empty_cache()
+
+    utils.get_ckpt_model(best_ckpt_path, model, device)
+    model.eval()
+    final_test_res = compute_loss_all_batches(model, test_encoder, test_graph, test_decoder,
+                                              n_batches=test_batch, device=device, n_traj_samples=3, kl_coef=0.)
+    message_final = 'FINAL (best-val checkpoint) [Test seq] | MSE {:.6f} | Likelihood {:.6f}|'.format(
+        final_test_res["mse"], final_test_res["likelihood"])
+    logger.info(message_final)
+    print(message_final)

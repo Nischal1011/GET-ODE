@@ -33,8 +33,9 @@ Dataset-specific support (S) and relation (c) construction (lib/gil_dataset.py):
 - Springs: S_ij = the dataset's own sparse physical graph (0/1); c_ij = 0 (no signed relation).
 - Charged: S_ij = 1 for all i != j (every pair interacts, per spec); c_ij = the raw +-1
   charge-product sign, recovered from the dataloader's 0/1-cast relation label.
-- IEEE39-Gen: S_ij = 1 for all i != j (complete interaction-support assumption); c_ij = 0. Never
-  read w_ij as recovered transmission-line topology (see reports/DATA_CHARACTERISTICS.md).
+- IEEE39-Gen: S_ij = the dataset's own physical support graph (0/1), Kron-reduced from the real
+  IEEE 39-bus network's admittance matrix (data/build_ieee39_kron_graph.py), not a complete-
+  graph placeholder (was, before CHANGES.md's Part on the IEEE39 physical graph); c_ij = 0.
 '''
 import torch
 import torch.nn as nn
@@ -45,21 +46,34 @@ import lib.utils as utils
 
 
 class GILODEFunc(nn.Module):
-    '''dh_i/dt = f_local(h_i) + alpha * f_graph(h_i, {h_j}); S/c are set once per batch/solve.'''
+    '''
+    dh_i/dt = f_local(h_i) + alpha * f_graph(h_i, {h_j}); S/c are set once per batch/solve.
 
-    def __init__(self, hidden_dim, rel_dim=1):
+    Structured GIL-ODE, Experiment 1 (see CHANGES.md): replaces the single mean-aggregated
+    message MLP with relation-expert messages (phi_pos/phi_neg, selected by the sign of c_ij,
+    matching NRI/LG-ODE's own MLP0_r/MLP1_r-per-relation-type design) and switches aggregation
+    from mean to sum -- physical force is additive (sum over neighbors), not degree-normalized,
+    which mean-aggregation silently imposed and which mattered most on Springs (variable degree)
+    and least on Charged/IEEE39 (complete graphs, ~constant degree, so mean vs. sum was mostly a
+    fixed rescale there). c_ij is always 0 for springs/IEEE39 (see gil_dataset.py), so those two
+    datasets always route through phi_neg -- effectively one shared "active edge" expert -- while
+    charged (c_ij = +-1) genuinely splits into separate attraction/repulsion experts. Lifting and
+    the scalar alpha gate are deliberately left untouched in this experiment, to isolate whether
+    the vector field itself is the bottleneck before changing anything else.
+    '''
+
+    def __init__(self, hidden_dim):
         super(GILODEFunc, self).__init__()
         self.f_local = utils.create_net(hidden_dim, hidden_dim, n_layers=1, n_units=hidden_dim, nonlinear=nn.Tanh)
-        # n_layers=2 (was 1): once alpha actually engages (see the v1->v2 fix in CHANGES.md), the
-        # graph term's own capacity became the limiting factor on springs/charged-extrap -- alpha
-        # grew but MSE didn't move, pointing at phi itself rather than the gate.
-        self.phi = utils.create_net(hidden_dim * 2 + rel_dim, hidden_dim, n_layers=2, n_units=hidden_dim, nonlinear=nn.Tanh)
+        self.phi_pos = utils.create_net(hidden_dim * 2, hidden_dim, n_layers=2, n_units=hidden_dim, nonlinear=nn.Tanh)
+        self.phi_neg = utils.create_net(hidden_dim * 2, hidden_dim, n_layers=2, n_units=hidden_dim, nonlinear=nn.Tanh)
         # Warm-started slightly positive (not exactly 0): a hard-zero init left no gradient
         # incentive to grow alpha under long extrapolation horizons (see CHANGES.md), so training
         # settled back near 0 instead of learning the graph term where it mattered.
         self.alpha = nn.Parameter(torch.tensor(0.15))
         utils.init_network_weights(self.f_local)
-        utils.init_network_weights(self.phi)
+        utils.init_network_weights(self.phi_pos)
+        utils.init_network_weights(self.phi_neg)
         self.S = None
         self.c = None
 
@@ -73,13 +87,13 @@ class GILODEFunc(nn.Module):
 
         h_i = h.unsqueeze(2).expand(B, N, N, H)
         h_j = h.unsqueeze(1).expand(B, N, N, H)
-        c_ij = self.c.unsqueeze(-1)
-        edge_in = torch.cat([h_i, h_j, c_ij], dim=-1)
-        phi_out = self.phi(edge_in)  # [B, N, N, H], phi_out[:, i, j] = phi(h_i, h_j, c_ij)
+        edge_in = torch.cat([h_i, h_j], dim=-1)
+
+        is_pos = (self.c > 0).unsqueeze(-1)
+        msg = torch.where(is_pos, self.phi_pos(edge_in), self.phi_neg(edge_in))  # [B, N, N, H]
 
         S_ = self.S.unsqueeze(-1)
-        deg = self.S.sum(dim=2, keepdim=True).clamp(min=1.0)  # [B, N, 1]
-        graph_term = (S_ * phi_out).sum(dim=2) / deg  # sum over j -> [B, N, H]
+        graph_term = (S_ * msg).sum(dim=2)  # sum (not mean) over j -> [B, N, H]
 
         return local + self.alpha * graph_term
 

@@ -25,15 +25,15 @@ Simplifications from the original NRI paper, flagged rather than silently made:
   not the original's two-round node2edge/edge2node/node2edge message passing. It still produces
   a data-dependent, learnable posterior over K=edge_types relation types per edge -- the
   functional requirement -- with less representational capacity than the full design.
-- The encoder's per-node input is the (mean, std) of that node's imputed features pooled over
-  the whole context window, not the original's flattened full time-series per node. This is
-  because the context window's length (union of observed times and decoder query times) varies
-  batch to batch here -- different random masks produce different-sized unions -- so a
-  fixed-size flattened-sequence input isn't available without further padding infrastructure;
-  pooling sidesteps that at the cost of discarding within-window temporal structure the
-  relation encoder could otherwise use.
 - Relation type is Gumbel-softmax relaxed at train time, hard argmax at eval time (standard
   practice, not a deviation).
+
+The encoder's per-node input is now a GRU's final hidden state run over that node's full
+imputed sequence in ascending time order (was: mean/std pooling over the context window, a
+simplification since replaced). The union-time grid's length still varies batch to batch, but a
+GRU only needs every sequence within one forward call to share a length -- true here by
+construction of the dense grid -- so the full ordered trajectory is used without needing fixed-
+size padding infrastructure across batches.
 
 For IEEE39-Gen, the "complete candidate graph" relation inference should never be read as
 recovering the physical transmission-line topology -- see reports/DATA_CHARACTERISTICS.md.
@@ -127,13 +127,14 @@ class NRIBaseline(nn.Module):
         self.obsrv_std = obsrv_std
 
         self.imputer = RNNImputer(input_dim, hidden_dim)
-        # Fixed-size input: mean + std of each node's imputed features, pooled over time. The
-        # union-time grid length (context observations union decoder query times) varies batch
-        # to batch (different random masks produce different-sized unions), so a flattened
-        # T*D per-node input -- closer to the original NRI paper's own encoder input -- can't
-        # have a fixed size here; pooling over time sidesteps that at the cost of discarding
-        # within-window temporal structure the relation encoder could otherwise use.
-        self.rel_encoder = NRIRelationEncoder(input_dim * 2, hidden_dim=64, edge_types=edge_types).to(device)
+        # Full-trajectory encoding (was mean/std pooling): a GRU consumes each node's imputed
+        # sequence in temporal order and its final hidden state is the fixed-size per-node input
+        # to the relation encoder. This uses the whole ordered trajectory, not just pooled
+        # statistics, while still handling the union-time grid's batch-to-batch length variation
+        # naturally -- a GRU only needs every sequence within ONE batch to share a length (they
+        # do, by construction of the dense grid), not across batches.
+        self.rel_seq_encoder = nn.GRU(input_dim, hidden_dim, batch_first=True)
+        self.rel_encoder = NRIRelationEncoder(hidden_dim, hidden_dim=64, edge_types=edge_types).to(device)
         self.rollout_input_proj = nn.Linear(input_dim, hidden_dim)
         self.rollout_output_proj = nn.Linear(hidden_dim, input_dim)
         self.decoder_step = NRIConv(hidden_dim, hidden_dim, dropout=0.1, skip_first=False)
@@ -158,7 +159,9 @@ class NRIBaseline(nn.Module):
             return pred.unsqueeze(0), None
 
         imputed_bn = imputed.view(B, self.num_atoms, T, self.input_dim)
-        node_inputs = torch.cat([imputed_bn.mean(dim=2), imputed_bn.std(dim=2)], dim=-1)  # [B, N, 2*D], fixed size
+        seq_in = imputed_bn.reshape(B * self.num_atoms, T, self.input_dim)  # ordered, ascending time
+        _, h_n = self.rel_seq_encoder(seq_in)  # h_n: [1, B*N, hidden_dim]
+        node_inputs = h_n.squeeze(0).view(B, self.num_atoms, -1)  # [B, N, hidden_dim], fixed size
         logits = self.rel_encoder(node_inputs, self.rel_rec, self.rel_send)  # [B, E, edge_types]
 
         if self.training:

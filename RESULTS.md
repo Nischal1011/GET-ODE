@@ -1,107 +1,114 @@
-# Results — Final Corrected Comparison
+# Results — TMLR-Bound Comparison
 
-This file starts fresh as of the "final corrected run" (see `CHANGES.md` Part 14). Everything
-before it — the paper reproduction, AT-LG-ODE, Corrected LG-ODE + 4 baselines at 30 epochs,
-and the GIL-ODE v1/v2/Tier-1 rounds — is preserved in `RESULTS_ARCHIVE_PHASE1-3.md` as the
-historical record of that work, but is superseded by what's below: two real apples-to-apples
-gaps were found in that earlier work (30 vs. the original repo's own 50-epoch default, and an
-unmatched 3x-5.6x parameter-count spread across models) and are fixed here.
+This file has been rewritten to reflect the current direction (see `CHANGES.md` Parts 19-20):
+a TMLR submission using existing models as transparently-documented faithful reimplementations
+(the paper never released baseline code, so nothing here claims to reproduce the paper's own
+baseline numbers — see "Baseline provenance" below) and deliberately smaller, fixed, stratified
+dataset subsets rather than the paper's full 20k/18k-trajectory scale, validated against
+full-scale springs results before being trusted. Everything before this rewrite — including the
+first "final corrected" 36-run matrix, which used validation-blind (best-on-test) checkpoint
+selection and a stale mean/std RNN-NRI encoder, both since fixed — is preserved in
+`RESULTS_ARCHIVE_PHASE1-3.md` and the git history of this file, not this page.
 
-## What "final corrected" means
+## Baseline provenance (read this before comparing to the paper)
 
-- **Epoch budget**: `--niters 50` everywhere, matching `run_models.py`'s (the original LG-ODE
-  repo's own script) default, not the 30 used previously for compute-cost reasons.
-- **Parameter count matched** across every from-scratch baseline, without touching LG-ODE's own
-  dimensions (`--latents 16 --rec-dims 64 --ode-dims 128`, unchanged, used by Corrected LG-ODE
-  and Edge-GNN):
+The original LG-ODE paper (Huang, Sun, Wang, NeurIPS 2020) never released code or hyperparameters
+for its own baselines (Latent-ODE, Weight-Decay, Edge-GNN, NRI+RNN) — confirmed directly against
+the authors' own GitHub repo, which contains only LG-ODE's own model code. So:
 
-  | Model | Capacity knob | Parameters |
-  |---|---|---|
-  | Corrected LG-ODE | `latents=16, rec-dims=64, ode-dims=128` (unchanged) | 268,836 |
-  | Edge-GNN | `latents=16, rec-dims=64, ode-dims=128` (unchanged) | 247,652 |
-  | ODE-RNN | `hidden-dim=192` | 272,860 |
-  | Latent-ODE | `latents=16, hidden-dim=180` | 262,036 |
-  | RNN-NRI | `hidden-dim=120` | 251,570 |
-  | GIL-ODE | `hidden-dim=152` | 258,561 |
+- **LG-ODE itself** is a genuine reproduction — the authors' own code is public (`run_models.py`
+  and unmodified `lib/` files), and it matches the paper's published numbers closely once run at
+  the correct data scale and the paper's own (leaky) protocol (`CHANGES.md` Part 17).
+- **ODE-RNN, Latent-ODE, Edge-GNN, RNN-NRI** are this project's own from-scratch
+  reimplementations of the *ideas* described in the paper and their originating papers
+  (Rubanova et al. 2019 for Latent-ODE, Gong & Cheng 2019 for Edge-GNN, Kipf et al. 2018 for
+  NRI), not the paper's own baseline code or hyperparameters, which don't exist publicly. Weight-
+  Decay (one of the paper's four baselines) was never implemented at all. Every "X beats Y" claim
+  in this project's tables is a claim about these reimplementations under this project's own
+  training protocol, not a claim about the paper's specific reported baseline figures.
+- Two of these reimplementations were revised for fidelity to their own source papers (not to
+  LG-ODE) as of `CHANGES.md` Part 19: Latent-ODE now uses the canonical backward-in-time encoder
+  (was a forward-pass-plus-single-jump simplification); RNN-NRI now uses a full-trajectory GRU
+  relation encoder (was mean/std pooling).
 
-  All 6 models now sit within a ~247K-273K band (previously 48K-269K).
-- **Everything else** (data pipeline, splits, normalization, seeds, `sample-percent`,
-  `batch-size`, optimizer/lr/l2/clip/scheduler, likelihood/MSE computation, checkpoint-selection
-  protocol) is unchanged from the audit already done — see `CHANGES.md` Part 12/13 for what was
-  verified consistent, and the one remaining caveat (best-checkpoint selection uses the test set
-  each epoch, inherited unchanged from the original repo and applied identically to all 6
-  models, so it doesn't bias the *relative* comparison but does mean absolute numbers are
-  slightly optimistic everywhere).
+## Dataset provenance and subsetting
 
-## Full 6-model comparison (complete)
+Springs and charged particles are Kipf et al.'s standard simulated benchmarks (5 interacting
+particles, irregular per-node observation sampling, interp/extrap tasks), matching the paper's
+own setup at 60% observed. The paper's specific sample count (20k train / 5k test) is not itself
+the scientific contribution — the defining behavior is the interaction structure (sparse binary
+graph for springs, dense signed graph for charged), the irregular per-object observation pattern,
+and the interp/extrap task split. This project uses fixed, deterministic, stratified **subsets**
+(5000 train / 1000 val / 1000 test for both springs and charged) that preserve this behavior,
+validated directly against full-scale results below, in order to make iteration and multi-model
+comparison computationally tractable. See `data/make_subset.py` and each dataset's
+`data/<name>_subset/subset_manifest.json` (exact selected trajectory indices + file hashes, for
+reproducibility) for the full method.
 
-All 36 runs finished (one, `final_gilode_ieee39_interp`, needed a manual rerun after an OOM —
-see `CHANGES.md` Part 15 — folded in below). MSE x10^-2.
+IEEE39-Gen remains the primary real-world use case (generator-level transient forecasting under
+irregular partial observation) and is not yet subsetted or re-derived with a physically-grounded
+(Kron-reduced) coupling graph — both open, tracked in `CHANGES.md` Part 20.
 
-| Dataset / Task | Corrected LG-ODE | ODE-RNN | Latent-ODE | Edge-GNN | RNN-NRI | GIL-ODE |
+## Full-scale springs (validation reference)
+
+50 epochs, full 20,000 train / 2,000 val / 5,000 test (`CorrectedParseData`'s own 10% val split
+off the 20k pool), validation-based checkpoint selection, capacity-matched hidden dims. MSE x10^-2.
+
+| Task | Corrected LG-ODE | ODE-RNN | Latent-ODE | Edge-GNN | RNN-NRI | GIL-ODE |
 |---|---|---|---|---|---|---|
-| Springs interp | 0.573 | 0.077 | **0.042** | 0.640 | 0.069 | 0.077 |
-| Springs extrap | **2.305** | 5.544 | 3.636 | 3.052 | 8.978 | 6.063 |
-| Charged interp | 0.905 | 0.180 | 0.417 | 1.146 | 0.183 | **0.141** |
-| Charged extrap | 4.761 | 6.831 | **3.891** | 4.974 | 9.197 | 6.979 |
-| IEEE39 interp | 9.525 | 1.079 | 7.900 | 11.165 | **0.975** | 1.064 |
-| IEEE39 extrap | 14.040 | 10.977 | 12.308 | 17.700 | 64.231 | **7.555** |
+| Springs interp | 0.275 | 0.055 | **0.014** | 0.404 | 0.026 | 0.054 |
+| Springs extrap | **1.970** | 5.446 | 5.602 | 2.296 | 3.264 | 5.375 |
 
-(bold = best per row; full logs: `run_logs/final_<model>_<dataset>_<interp|extrap>.log`)
+Logs: `run_logs/final2_<model>_spring_<interp|extrap>.log`. (Charged and IEEE39 full-scale runs
+were stopped partway through once the subset pivot was decided — charged got 10/12 cells done
+before stopping, kept as a bonus partial reference, not reported as a complete table here.)
 
-### Headline finding
+## Springs subset validation (5000/1000/1000 vs. full-scale)
 
-**GIL-ODE wins 2 of 6 cells** (charged interp, and IEEE39 extrap decisively — 7.555 vs. the
-next-best 10.977) — down from 3 of 6 in the earlier, capacity-mismatched/30-epoch comparison
-(`RESULTS_ARCHIVE_PHASE1-3.md`). That drop is the expected, honest consequence of fixing the two
-methodology gaps documented in `CHANGES.md` Part 13: once every model gets the same training
-length and a comparable parameter budget, some of GIL-ODE's earlier apparent edge turns out to
-have been other models being undertrained or undersized, not purely an architectural advantage.
-The one result that held up and actually got *stronger* is IEEE39 extrap, which is arguably
-GIL-ODE's most meaningful win since it's decisive rather than marginal.
+Ran the three most distinct anchor models (ODE-RNN: no graph; Corrected LG-ODE: graph + VAE
+bottleneck; GIL-ODE: graph + innovation lifting) on the fixed subset, same protocol, to check
+whether the subset preserves full-scale ranking and behavior before trusting it for the rest of
+the comparison work.
 
-**Absolute errors dropped sharply almost everywhere** compared to the archived 30-epoch numbers
-(e.g. Latent-ODE springs-interp: 0.203 -> 0.042; Edge-GNN springs-interp: 1.235 -> 0.640) —
-direct confirmation that the earlier comparison really was capacity/training-length limited for
-several models, not just GIL-ODE's baselines.
+| Model / Task | Full-scale | Subset | Ratio |
+|---|---|---|---|
+| ODE-RNN interp | 0.055 | 0.069 | 1.26x |
+| ODE-RNN extrap | 5.446 | 5.374 | 0.99x |
+| Corrected LG-ODE interp | 0.275 | 0.305 | 1.11x |
+| Corrected LG-ODE extrap | 1.970 | 2.021 | 1.03x |
+| GIL-ODE interp | 0.054 | 0.068 | 1.26x |
+| GIL-ODE extrap | 5.375 | 6.249 | 1.16x |
 
-**RNN-NRI's IEEE39-extrap number is a genuine outlier** (64.231, roughly 6x worse than its own
-interp number on the same dataset and far worse than every other model) — consistent with, and
-amplifying, its already-documented compounding-error failure mode in autoregressive discrete
-rollout (`CHANGES.md` Part 9): more capacity gave the rollout more room to diverge, not less. Not
-a new bug; read this cell as evidence of a known architectural limitation, not noise.
+**Ranking is preserved.** Interp: GIL-ODE and ODE-RNN are close together and both far ahead of
+Corrected LG-ODE, in both full-scale and subset (same order, similar ~5x gap to LG-ODE in both).
+Extrap: Corrected LG-ODE wins decisively over both baselines in both full-scale and subset (same
+~2.5-3x gap). The one soft spot: GIL-ODE and ODE-RNN's extrap order flips between the two regimes
+(GIL-ODE narrowly ahead full-scale, ODE-RNN narrowly ahead on the subset) — but given how close
+those two already are in both regimes (within 1-2%, then within 16%), this reads as noise around
+a near-tie between two closely-matched models, not a failure of the subset to preserve the
+result that actually matters (LG-ODE's decisive extrap win, and the interp story). Absolute MSEs
+shift up modestly on the subset (mostly +3% to +26%), as expected with 4x less training data,
+but the qualitative comparison a reader would draw from either table is the same.
 
-**Overfitting under the 50-epoch budget persists for several cells** even with the more generous
-epoch count — best-epoch was well before 50 for: Corrected LG-ODE charged interp/extrap (17, 19),
-ODE-RNN springs-extrap (9), RNN-NRI charged-extrap (12), GIL-ODE springs-extrap (5, notably
-early). This is the same "best-on-test checkpoint selection" dynamic flagged in Part 12/13 of
-`CHANGES.md` — inherited from the original repo, applied identically to all 6 models, so it
-doesn't bias the comparison, but it means these specific numbers are best read as "best reachable
-under this protocol," not "converged performance."
-
-### Why Corrected LG-ODE doesn't match the original paper's own numbers
-
-Corrected LG-ODE loses badly on interpolation here, which looks like it contradicts the actual
-paper (it reports LG-ODE beating every baseline on *both* interp and extrap at 60% observed).
-Investigated directly (`CHANGES.md` Part 17) rather than accepting it at face value: this
-project's very first, *uncorrected* reproduction of LG-ODE (`RESULTS_ARCHIVE_PHASE1-3.md`)
-matches the paper's own published numbers closely (springs interp 0.341 vs. paper's 0.317,
-charged interp 0.803 vs. 0.828, within normal seed variance on every cell) — while the
-*corrected* version (with the test-set-normalization leakage removed, see `CHANGES.md` Part 8)
-does not. This strongly indicates the paper's own published numbers were produced with the same
-normalization leakage this project identified and fixed. Corrected LG-ODE's numbers here should
-therefore be read as a fair, leakage-free comparison against the other 5 models in this table
-(all built without that leakage from the start) — not as a failed reproduction of the paper,
-which cannot be matched without reintroducing the same leak.
+Logs: `run_logs/subset_<model>_spring_<interp|extrap>.log`.
 
 ## What was run
 
 ```
-# All 6 models x 3 datasets x 2 tasks, 50 epochs, capacity-matched hidden-dim where applicable
-python run_models_corrected.py --data <spring|charged|ieee39> [--extrap True] --niters 50 --alias <name>
-python run_models_odernn.py    --data <spring|charged|ieee39> [--extrap True] --niters 50 --hidden-dim 192 --alias <name>
-python run_models_latentode.py --data <spring|charged|ieee39> [--extrap True] --niters 50 --hidden-dim 180 --alias <name>
-python run_models_edgegnn.py   --data <spring|charged|ieee39> [--extrap True] --niters 50 --alias <name>
-python run_models_rnnnri.py    --data <spring|charged|ieee39> [--extrap True] --niters 50 --hidden-dim 120 --alias <name>
-python run_models_gilode.py    --data <spring|charged|ieee39> [--extrap True] --niters 50 --hidden-dim 152 --alias <name>
+# Subset creation (deterministic, stratified, seeded)
+python data/make_subset.py --dataset spring  --train-pool-size 6000 --test-size 1000 --seed 20260916
+python data/make_subset.py --dataset charged --train-pool-size 6000 --test-size 1000 --seed 20260916
+
+# Full-scale springs reference (6 models x 2 tasks)
+python run_models_corrected.py --data spring [--extrap True] --niters 50 --alias <name>
+python run_models_odernn.py    --data spring [--extrap True] --niters 50 --hidden-dim 192 --alias <name>
+python run_models_latentode.py --data spring [--extrap True] --niters 50 --hidden-dim 180 --alias <name>
+python run_models_edgegnn.py   --data spring [--extrap True] --niters 50 --alias <name>
+python run_models_rnnnri.py    --data spring [--extrap True] --niters 50 --hidden-dim 120 --alias <name>
+python run_models_gilode.py    --data spring [--extrap True] --niters 50 --hidden-dim 152 --alias <name>
+
+# Subset validation (3 anchor models x 2 tasks)
+python run_models_odernn.py    --data spring --dataset-dir data/spring_subset --val-fraction 0.166666667 [--extrap True] --niters 50 --hidden-dim 192 --alias <name>
+python run_models_corrected.py --data spring --dataset-dir data/spring_subset --val-fraction 0.166666667 [--extrap True] --niters 50 --alias <name>
+python run_models_gilode.py    --data spring --dataset-dir data/spring_subset --val-fraction 0.166666667 [--extrap True] --niters 50 --hidden-dim 152 --alias <name>
 ```

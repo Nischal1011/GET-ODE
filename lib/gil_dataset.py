@@ -46,16 +46,19 @@ def build_S_c(graph_01, num_atoms, dataset, device):
         # The 0/1 pattern IS the physical support (spring exists / doesn't); no signed relation.
         S = dense01
         c = torch.zeros(B, N, N, device=device)
+    elif dataset == 'ieee39':
+        # The 0/1 pattern IS the physical support: a Kron-reduced generator-coupling graph
+        # (data/build_ieee39_kron_graph.py), not a complete-graph placeholder -- see CHANGES.md.
+        # No signed relation (unlike charged), same reasoning as springs.
+        S = dense01
+        c = torch.zeros(B, N, N, device=device)
     else:
-        # Charged and IEEE39-Gen: every pair is support-connected, per spec.
+        # Charged: every pair is support-connected (every particle physically interacts).
         complete = (torch.ones(N, N, device=device) - torch.eye(N, device=device)).unsqueeze(0).expand(B, -1, -1)
         S = complete.clone()
-        if dataset == 'charged':
-            # Recover the raw +-1 charge-product sign from the 0/1-cast label (0->-1, 1->+1);
-            # provided as a relation feature, never interpreted as adjacency (S is already
-            # complete regardless of sign).
-            c = 2 * dense01 - 1
-        else:
-            c = torch.zeros(B, N, N, device=device)
+        # Recover the raw +-1 charge-product sign from the 0/1-cast label (0->-1, 1->+1);
+        # provided as a relation feature, never interpreted as adjacency (S is already complete
+        # regardless of sign).
+        c = 2 * dense01 - 1
 
     return S, c

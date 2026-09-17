@@ -21,3 +21,7 @@ data/motion/
 data/raw/
 data/processed/
 data/Dataset for Transient Stability Assessment of IEEE 39-Bus System/
+data/spring_subset/*
+data/charged_subset/*
+!data/spring_subset/subset_manifest.json
+!data/charged_subset/subset_manifest.json

@@ -77,3 +77,48 @@ def run_batched_ode_rnn(ode_func, gru_cell, input_proj, x, pos, y, decoder_time_
         prev_t = cur_t
 
     return outputs[:, query_idx]
+
+
+def run_batched_ode_rnn_backward(ode_func, gru_cell, input_proj, x, pos, y, t0,
+                                  hidden_dim, device, method='rk4'):
+    '''
+    Canonical Latent-ODE encoder direction (Rubanova et al. 2019): processes observations in
+    REVERSE chronological order, integrating the hidden state backward in time between
+    consecutive observations (torchdiffeq's odeint natively integrates correctly when given a
+    decreasing time span, no gradient negation needed) and applying the GRU update at each
+    observation in its correct temporal position, ending with one final backward step to t0 --
+    rather than a forward pass followed by a single big backward jump at the end (the earlier
+    simplification this replaces, see lib/baseline_latent_ode.py). Returns h at t0, [M, hidden_dim].
+    '''
+    M = y.shape[0]
+    obs_times = pos.unique(sorted=True)  # ascending
+    T_obs = obs_times.shape[0]
+
+    seq_id = torch.repeat_interleave(torch.arange(M, device=device), y)
+    time_idx = torch.searchsorted(obs_times, pos)
+
+    obs_dense = torch.zeros(M, T_obs, x.shape[-1], device=device)
+    obs_mask = torch.zeros(M, T_obs, dtype=torch.bool, device=device)
+    obs_dense[seq_id, time_idx] = x
+    obs_mask[seq_id, time_idx] = True
+
+    h = torch.zeros(M, hidden_dim, device=device)
+    prev_t = obs_times[-1]
+
+    for i in range(T_obs - 1, -1, -1):
+        cur_t = obs_times[i]
+        if (prev_t - cur_t).abs() > 1e-8:
+            t_span = torch.stack([prev_t, cur_t])
+            h = odeint(ode_func, h, t_span, method=method)[-1]
+        mask_i = obs_mask[:, i]
+        if mask_i.any():
+            x_in = input_proj(obs_dense[:, i])
+            h_updated = gru_cell(x_in, h)
+            h = torch.where(mask_i.unsqueeze(-1), h_updated, h)
+        prev_t = cur_t
+
+    if (prev_t - t0).abs() > 1e-8:
+        t_span = torch.stack([prev_t, t0])
+        h = odeint(ode_func, h, t_span, method=method)[-1]
+
+    return h

@@ -45,6 +45,10 @@ class CorrectedParseData(ParseData):
         super(CorrectedParseData, self).__init__(*args, **kwargs)
         self._train_slice = None
         self._val_slice = None
+        # Overridable per-run (default unchanged): lets a fixed-size subset's train pool hit an
+        # exact train/val split (e.g. 6000 pool -> 5000/1000 needs val_fraction=1/6, not the
+        # global default) without touching VAL_FRACTION for every other dataset/run.
+        self.val_fraction = getattr(self.args, 'val_fraction', None) or VAL_FRACTION
 
     # ---- Fix 1: object-identity / connectivity -----------------------------------------
 
@@ -79,7 +83,7 @@ class CorrectedParseData(ParseData):
 
             if self._train_slice is None:
                 n = loc_all.shape[0]
-                n_val = int(round(n * VAL_FRACTION))
+                n_val = int(round(n * self.val_fraction))
                 # Fixed, disjoint slice by trajectory index -- deterministic given the data
                 # files (no shuffling needed: train/val/test are already independently
                 # generated simulations, so any contiguous split of the train pool is leakage

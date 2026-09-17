@@ -12,14 +12,14 @@ Reuses VAE_Baseline's compute_all_losses UNCHANGED (same pattern as LatentGraphO
 itself) -- only get_reconstruction is implemented, producing the same
 info["first_point"] = (mean, std, z0_sample) structure the inherited KL computation expects.
 
-Encoder design note: the "textbook" Latent-ODE encoder runs its ODE-RNN BACKWARDS in time (from
-the last observation to the first) so z0 directly represents the state at t=0. This
-implementation instead runs the encoder FORWARD (same direction as ODE-RNN's own encoding) and
-then does one extra backward ODE solve from the last-observed time to t=0 (or to the
-context/forecast boundary time for extrapolation, matching every other model in this project's
-z0-reference convention) to align the summary with a t=0 initial condition. This is a
-simplification for implementation tractability, not the original paper's exact encoder -- flagged
-here rather than silently deviating.
+Encoder: the canonical Latent-ODE encoder (Rubanova et al. 2019) runs its ODE-RNN BACKWARDS in
+time -- from the last observation to the first, integrating the hidden state backward between
+consecutive observations and applying the GRU update at each one in its correct temporal
+position -- so z0 directly represents the state at t=0 (or the context/forecast boundary time
+for extrapolation, matching every other model in this project's z0-reference convention). See
+lib/nongraph_ode.py's run_batched_ode_rnn_backward. (An earlier version of this file ran the
+encoder forward and did one large backward jump at the end instead of interleaving updates
+during the backward sweep -- a simplification, not this design -- since replaced.)
 '''
 import torch
 import torch.nn as nn
@@ -27,7 +27,7 @@ from torchdiffeq import odeint
 
 import lib.utils as utils
 from lib.base_models import VAE_Baseline
-from lib.nongraph_ode import make_ode_func, run_batched_ode_rnn
+from lib.nongraph_ode import make_ode_func, run_batched_ode_rnn_backward
 
 
 class LatentODEBaseline(VAE_Baseline):
@@ -52,19 +52,11 @@ class LatentODEBaseline(VAE_Baseline):
 
     def encode_z0(self, batch_en):
         x, pos, y = batch_en.x, batch_en.pos, batch_en.y
-        query_times = pos.unique(sorted=True)
+        t0 = torch.zeros((), device=self.device, dtype=pos.dtype)
 
-        h_at_obs = run_batched_ode_rnn(
-            self.enc_ode_func, self.enc_gru_cell, self.enc_input_proj, x, pos, y, query_times,
+        h0 = run_batched_ode_rnn_backward(
+            self.enc_ode_func, self.enc_gru_cell, self.enc_input_proj, x, pos, y, t0,
             self.hidden_dim, self.device)
-        h_end = h_at_obs[:, -1]  # state at query_times[-1], the last observation in this batch
-
-        t_last = query_times[-1]
-        if t_last.item() > 1e-8:
-            t_span = torch.stack([t_last, torch.zeros_like(t_last)])
-            h0 = odeint(self.enc_ode_func, h_end, t_span, method='rk4')[-1]
-        else:
-            h0 = h_end
 
         z0_params = self.z0_head(h0)
         mean = z0_params[..., :self.latent_dim]

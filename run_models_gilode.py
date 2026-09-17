@@ -31,6 +31,7 @@ parser.add_argument('--hidden-dim', type=int, default=152)
 parser.add_argument('--extrap', type=str, default="False")
 parser.add_argument('--sample-percent-train', type=float, default=0.6)
 parser.add_argument('--sample-percent-test', type=float, default=0.6)
+parser.add_argument('--val-fraction', type=float, default=None, help='Override CorrectedParseData.VAL_FRACTION (e.g. for fixed-size subsets to hit an exact split)')
 parser.add_argument('--l2', type=float, default=1e-3)
 parser.add_argument('--optimizer', type=str, default="AdamW")
 parser.add_argument('--clip', type=float, default=10)
@@ -42,7 +43,7 @@ parser.add_argument('--dataset-dir', type=str, default=None)
 args = parser.parse_args()
 
 if args.data == "spring":
-    args.dataset = 'data/example_data'
+    args.dataset = 'data/spring'
     args.suffix = '_springs5'
     args.total_ode_step = 60
 elif args.data == "charged":
@@ -140,7 +141,8 @@ if __name__ == '__main__':
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 1000, eta_min=1e-9)
 
-    best_test_mse = np.inf
+    best_val_mse = np.inf
+    best_ckpt_path = None
 
     def train_single_batch(batch_dict_encoder, batch_dict_decoder, batch_dict_graph):
         optimizer.zero_grad()
@@ -192,10 +194,15 @@ if __name__ == '__main__':
         message_train = train_epoch(epo)
 
         model.eval()
+        val_res = compute_loss_all_batches(model, val_encoder, val_graph, val_decoder,
+                                           n_batches=val_batch, device=device, n_traj_samples=1, kl_coef=0.)
+        # Diagnostic only, never used for checkpoint selection -- see run_models_corrected.py.
         test_res = compute_loss_all_batches(model, test_encoder, test_graph, test_decoder,
                                             n_batches=test_batch, device=device, n_traj_samples=1, kl_coef=0.)
 
-        message_test = 'Epoch {:04d} [Test seq (cond on sampled tp)] | Loss {:.6f} | MSE {:.6F} | Likelihood {:.6f}|'.format(
+        message_val = 'Epoch {:04d} [Val seq (cond on sampled tp)] | Loss {:.6f} | MSE {:.6F} | Likelihood {:.6f}|'.format(
+            epo, val_res["loss"], val_res["mse"], val_res["likelihood"])
+        message_test = 'Epoch {:04d} [Test seq, diagnostic only] | Loss {:.6f} | MSE {:.6F} | Likelihood {:.6f}|'.format(
             epo, test_res["loss"], test_res["mse"], test_res["likelihood"])
 
         alpha_val = model.core.ode_func.alpha.data.item()
@@ -206,18 +213,28 @@ if __name__ == '__main__':
 
         logger.info("Experiment " + str(experimentID))
         logger.info(message_train)
+        logger.info(message_val)
         logger.info(message_test)
         logger.info(message_graph)
         print("data: %s, model: GIL-ODE, sample: %s, mode:%s" % (args.data, str(args.sample_percent_train), args.mode))
 
-        if test_res["mse"] < best_test_mse:
-            best_test_mse = test_res["mse"]
-            message_best = 'Epoch {:04d} [Test seq (cond on sampled tp)] | Best mse {:.6f}|'.format(epo, best_test_mse)
+        if val_res["mse"] < best_val_mse:
+            best_val_mse = val_res["mse"]
+            message_best = 'Epoch {:04d} [Val seq (cond on sampled tp)] | Best val mse {:.6f}|'.format(epo, best_val_mse)
             logger.info(message_best)
-            ckpt_path = os.path.join(args.save, "experiment_" + str(
+            best_ckpt_path = os.path.join(args.save, "experiment_" + str(
                 experimentID) + "_gilode_" + args.data + "_" + str(
-                args.sample_percent_train) + "_" + args.mode + "_epoch_" + str(epo) + "_mse_" + str(
-                best_test_mse) + '.ckpt')
-            torch.save({'args': args, 'state_dict': model.state_dict()}, ckpt_path)
+                args.sample_percent_train) + "_" + args.mode + "_epoch_" + str(epo) + "_valmse_" + str(
+                best_val_mse) + '.ckpt')
+            torch.save({'args': args, 'state_dict': model.state_dict()}, best_ckpt_path)
 
         torch.cuda.empty_cache()
+
+    utils.get_ckpt_model(best_ckpt_path, model, device)
+    model.eval()
+    final_test_res = compute_loss_all_batches(model, test_encoder, test_graph, test_decoder,
+                                              n_batches=test_batch, device=device, n_traj_samples=1, kl_coef=0.)
+    message_final = 'FINAL (best-val checkpoint) [Test seq] | MSE {:.6f} | Likelihood {:.6f}|'.format(
+        final_test_res["mse"], final_test_res["likelihood"])
+    logger.info(message_final)
+    print(message_final)

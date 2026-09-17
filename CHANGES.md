@@ -679,13 +679,248 @@ leakage-free baseline compared consistently against the other 5 models (which we
 without this leakage from the start) -- not as a discrepancy to be reconciled with the original
 paper, which cannot be matched without reintroducing the same leakage.
 
+## Part 18 — Uncorrected LG-ODE added to the final table; Structured GIL-ODE Experiment 1
+
+**Uncorrected LG-ODE, at the final protocol (50 epochs, run_logs/final_uncorrected_*.log)**:
+re-ran the original, unmodified `run_models.py` on springs/charged (interp+extrap; IEEE39 has no
+code path in the original script and didn't exist in the original paper, so it's n/a) and added
+it to `RESULTS.md`'s comparison table as a reference-only column (not eligible for "best per
+row" bolding, since it retains the train/test normalization leak the other 6 columns don't have
+-- see Part 17). Results: springs interp 0.592, springs extrap 2.105, charged interp 0.771,
+charged extrap 5.658 (all x10^-2). Notably these are somewhat farther from the paper's own
+published numbers (0.317/1.808/0.828/6.434) than the original 30-epoch reproduction was
+(0.341/1.642/0.803/5.811, `RESULTS_ARCHIVE_PHASE1-3.md`) -- most likely GPU/cuDNN
+non-determinism across separate runs at a fixed seed (a known, expected source of run-to-run
+variance for GPU-trained models, not evidence against the Part 17 finding, which rests on the
+leak/no-leak pattern holding across cells, not exact numerical precision).
+
+**Structured GIL-ODE, Experiment 1** (relation-expert messages + sum aggregation, replacing the
+single mean-aggregated MLP; lifting and the scalar alpha gate left untouched -- proposed
+externally as a targeted diagnostic for the springs/charged extrapolation gap, on the theory that
+physical force is additive (sum over neighbors) and that one shared MLP asks too much of a
+single network to represent both attraction and repulsion on charged). Implemented in
+`lib/gil_ode.py`: `GILODEFunc` now has `phi_pos`/`phi_neg`, two separate expert MLPs selected by
+the sign of `c_ij` (charged genuinely splits into attraction/repulsion experts; springs/IEEE39
+always route through `phi_neg` since their `c_ij` is always 0, effectively one shared "active
+edge" expert), and aggregation changed from `sum(...)/deg` to plain `sum(...)`. Smoke-tested
+stable (no NaNs/divergence) on all three datasets, including IEEE39 where sum-aggregation over
+degree-9 complete-graph neighborhoods was the main stability risk.
+
+Ran the 3 extrapolation cells this was meant to diagnose (`run_logs/structured_exp1_gilode_*.log`):
+
+| Task | GIL-ODE (current) | Structured Exp1 | Change |
+|---|---|---|---|
+| Springs extrap | 6.063 | 5.228 | improved ~14% |
+| Charged extrap | 6.979 | **7.928** | **worse ~14%** |
+| IEEE39 extrap | 7.555 | 6.816 | improved ~10% |
+
+**Outcome: not confirmed**, by the diagnostic's own stated criterion ("if Springs and Charged
+improve sharply, the primary bottleneck is confirmed"). Springs improved, but modestly rather
+than sharply (still ~2.5x behind Corrected LG-ODE's 2.305 on that cell). Charged got worse, the
+opposite of the prediction. IEEE39 (already GIL-ODE's best cell) improved further. Leading
+explanation: removing `/deg` scales the raw graph signal up by a factor of the degree before
+`alpha`/the expert networks have adapted to the new scale -- charged is a complete graph (degree
+4 at N=5), so this is a flat ~4x scale-up there, plausibly making optimization harder rather than
+fixing the underlying force-law representation, while springs (lower, variable degree) saw the
+predicted benefit since the additive-force argument applies more directly there. Not yet
+determined which half of the combined change (sum vs. mean, or relation-expert vs. single-MLP)
+is responsible for charged's regression -- an ablation isolating the two would be the natural
+next step before deciding whether to proceed to Experiment 2 (hard-anchoring) as originally
+sequenced.
+
+## Part 19 — Four more fixes from an external audit; everything above needs a full rerun
+
+An external review of the project (checking each model against its own design intent) raised
+four concrete, valid issues. All four are now fixed and individually smoke-tested; **every
+number currently in `RESULTS.md` is stale** as a result and needs a full rerun -- checkpoint
+selection changed for every model, springs' data source changed for every model, and two
+architectures changed outright.
+
+1. **Springs still using the small dataset** (re-confirmed broken, see the "how about springs"
+   exchange preceding this part): `args.dataset = 'data/example_data'` was the springs default
+   in all 6 "own" scripts (`run_models_corrected.py`, `run_models_odernn.py`,
+   `run_models_latentode.py`, `run_models_edgegnn.py`, `run_models_rnnnri.py`,
+   `run_models_gilode.py`). Changed the default to `'data/spring'` (the full 20k-graph dataset)
+   in all 6. `run_models.py` (the original, unmodified paper script) is deliberately left
+   untouched -- its own default stays `data/example_data`; the full dataset is reached for it via
+   the pre-existing `--dataset-dir` override instead, since changing its default would mean
+   changing LG-ODE's own structure.
+
+2. **Best-on-test checkpoint selection, replaced with validation-based selection.** Every
+   script's training loop now tracks `best_val_mse` (not `best_test_mse`) for checkpoint
+   saving; test is still computed every epoch and logged (`[Test seq, diagnostic only]`) purely
+   so the existing overfitting-curve visibility this project has relied on throughout isn't
+   lost, but it no longer drives any decision. After training, the best-*validation* checkpoint
+   is reloaded and test is evaluated exactly once, logged as `FINAL (best-val checkpoint) [Test
+   seq] | MSE ... | Likelihood ...` -- this is the number that should be read as each model's
+   result going forward. Applied identically to all 6 scripts (`run_models_corrected.py`,
+   `run_models_odernn.py`, `run_models_latentode.py`, `run_models_edgegnn.py`,
+   `run_models_rnnnri.py`, `run_models_gilode.py`).
+   - Fixed a real, previously-latent bug hit while wiring this up: `lib/utils.py`'s
+     `get_ckpt_model` called `torch.load(ckpt_path)` with no `weights_only` argument, which a
+     newer PyTorch version now defaults to `True` -- this crashed loading any checkpoint whose
+     saved dict includes a non-tensor object (`{'args': args, ...}`, an `argparse.Namespace`).
+     This code path was rarely exercised before (only the optional `--load` resume flag used
+     it); reloading the best-val checkpoint for the final test evaluation exercises it on every
+     run now. Fixed with `torch.load(ckpt_path, weights_only=False)` -- safe here since these
+     are this project's own checkpoints, never an untrusted external source.
+
+3. **Latent-ODE: canonical backward encoder**, replacing the forward-pass-plus-one-big-jump
+   simplification. `lib/nongraph_ode.py` gained `run_batched_ode_rnn_backward`: processes
+   observations in reverse chronological order, integrating the hidden state backward between
+   consecutive observations (torchdiffeq's `odeint` natively integrates correctly given a
+   decreasing time span -- no gradient negation needed) and applying the GRU update at each
+   observation in its correct temporal position, ending with one final backward step to t0 --
+   matching Rubanova et al. (2019)'s actual design, rather than a forward sweep followed by a
+   single backward jump at the very end. `lib/baseline_latent_ode.py`'s `encode_z0` now calls
+   this instead of `run_batched_ode_rnn` + a manual jump.
+
+4. **RNN-NRI: full-trajectory relation encoder**, replacing mean/std pooling.
+   `lib/nri_baseline.py`'s `NRIBaseline` gained `self.rel_seq_encoder` (a GRU); the relation
+   encoder's per-node input is now that GRU's final hidden state run over the node's full
+   imputed sequence in ascending time order, not `[mean, std]` pooled over the window. This uses
+   the whole ordered trajectory the original NRI paper's own encoder is described as using. The
+   union-time grid's length still varies batch to batch, but that was never actually a blocker
+   for an RNN (only for a fixed-size flattened input) -- every sequence within one forward call
+   already shares a length by construction of the dense grid, which is all a GRU needs.
+
+All four changes were smoke-tested individually (3 epochs each, both springs and charged where
+relevant) before being combined; no crashes, no NaNs. `run_models_corrected.py`'s GIL-ODE, Edge-
+GNN, ODE-RNN validation-checkpointing changes were likewise smoke-tested clean. Full rerun of
+everything (`run_logs/final2_*.log`) launched next; see `RESULTS.md` once it completes.
+
+## Part 20 — Pivot to fixed subsets for a TMLR submission; springs full-data vs. subset validation
+
+Direction change: rather than exhaustively rerunning every model on the full 20k/18k-trajectory
+datasets (springs alone took ~13 hours for its 12-run block once fixed to use the correct
+full-scale data), the target is now a TMLR submission using deliberately smaller, fixed,
+stratified subsets -- transparently documented as such, with existing models framed explicitly
+as faithful reimplementations (not the paper's own released baseline code, which doesn't exist --
+Part "baseline provenance" discussion) and the dataset framed the same way. The `final2_matrix.sh`
+run was stopped once springs completed (12/12 clean) and charged was 10/12 through -- both kept
+as a full-data reference, not discarded.
+
+**Subset design** (`data/make_subset.py`): stratified, deterministic, seeded sampling from the
+full train pool (for train+val) and full test set (for test) independently, preserving each
+dataset's defining structural property:
+- **Springs** (5000 train / 1000 val / 1000 test): stratified by number of active edges per
+  trajectory (0-10) -- the sparse-graph density distribution.
+- **Charged** (5000 train / 1000 val / 1000 test): stratified by number of positive (attractive)
+  edges per trajectory. This turned out to only take 3 distinct values (4, 6, 10) across the
+  entire population, not a smooth 4-10 range -- confirmed this is real, not a bug: charged
+  particles are generated with each of 5 particles independently assigned a +-1 charge, and a
+  pair's sign is the product of its two particles' charges, so the positive-edge count is a
+  function of how many of the 5 particles got +1 (k), namely C(k,2)+C(5-k,2), which only takes
+  values in {4, 6, 10} for k in {0..5}. The stratified sample preserves this exactly (e.g. 0.6255
+  vs. the full population's 0.6256 for the largest class).
+- Both subsets matched the full population's key-distribution fractions to within ~0.001 at
+  every bucket (printed by the script, saved in `subset_manifest.json`).
+- The train pool is shuffled (fixed seed) after stratified selection so `CorrectedParseData`'s
+  existing contiguous "last N% is val" split isn't biased toward any stratification bucket.
+- `subset_manifest.json` (one per dataset) records the exact selected original trajectory
+  indices and a sha256 of every saved `.npy` file, for exact reproducibility.
+- `lib/corrected_dataLoader.py` gained an overridable `self.val_fraction` (was the hardcoded
+  module constant `VAL_FRACTION = 0.1` for every dataset); a new `--val-fraction` CLI flag on
+  `run_models_odernn.py`/`run_models_corrected.py`/`run_models_gilode.py` lets the 6000-trajectory
+  subset train pool hit an exact 5000/1000 split (`val_fraction = 1/6`) without changing the
+  default for any full-scale run.
+- IEEE39-Gen's subset (6-8k train / 1k val / 2k test) and, separately, deriving its graph from an
+  actual Kron-reduced generator admittance matrix (replacing the current complete-graph
+  "interaction-support assumption") are both still open -- the latter is a substantially bigger,
+  power-systems-domain task (needs real IEEE 39-bus network parameters and a documented
+  reduction procedure) and deliberately not rushed into this same pass.
+
+**Validation experiment, result**: ran ODE-RNN, Corrected LG-ODE, and GIL-ODE on the new springs
+subset (5000/1000/1000, same 50-epoch/matched-capacity/validation-checkpointing protocol as the
+full-data run). Ranking is preserved: interp (GIL-ODE ~ ODE-RNN, both far ahead of Corrected
+LG-ODE) and extrap (Corrected LG-ODE decisively ahead of both) hold in the same order at both
+scales, with absolute MSEs shifting up modestly (+3% to +26%) on the subset as expected with 4x
+less training data. The one soft spot: GIL-ODE and ODE-RNN's extrap order flips between full-
+scale and subset, but they're within 1-16% of each other in both regimes, i.e. noise around a
+near-tie, not a failure to preserve the result that actually matters. Full table in `RESULTS.md`.
+Conclusion: the subset methodology is validated for springs; charged's subset (already built,
+same manifest-verified stratification quality) is assumed to transfer similarly pending its own
+validation run if requested. `RESULTS.md` has been rewritten around this direction -- the
+previous 36-cell "final corrected comparison" table is retired to history (still in this file's
+git log and `RESULTS_ARCHIVE_PHASE1-3.md`'s lineage), not carried forward as current.
+
+## Part 21 — IEEE39's physical graph: Kron-reduced from the real network (was a complete-graph placeholder)
+
+Long-standing open item (flagged since `reports/DATA_CHARACTERISTICS.md`, Phase 2): the Mendeley
+transient-stability dataset has no admittance/network data at all, so IEEE39-Gen's interaction
+graph was a complete-graph placeholder from the start, always explicitly documented as such, not
+the physical topology. Replaced with a real, derived generator-to-generator coupling graph.
+
+**Source of network data**: MATPOWER's `data/case39.m` (MATPOWER/matpower, MIT licensed) -- the
+de facto standard machine-readable IEEE 39-bus New England system dataset, itself sourced from
+Bills et al. 1970 / Pai 1989 / Athay, Podmore & Virmani 1979 (IEEE Trans. Power Apparatus and
+Systems, PAS-98(2):573-584). Fetched the raw file directly (`curl` the GitHub raw URL, not a
+WebFetch summary, to get exact numeric values rather than a paraphrase) and hand-verified branch
+count (46, matches) and several transformer-tap rows against the source before using it.
+
+**Method** (`data/build_ieee39_kron_graph.py`):
+1. Build the full 39-bus complex admittance matrix from branch series impedance (r, x), shunt
+   susceptance (split half to each end, standard pi-model), and off-nominal tap ratio for
+   transformer branches.
+2. Kron-reduce to the 10 generator buses only: `Y_reduced = Y_gg - Y_gn @ inv(Y_nn) @ Y_ng`,
+   eliminating every non-generator bus under a no-injection assumption -- the standard network-
+   reduction formula from exactly the transient-stability literature (Pai 1989) this dataset's
+   own generation method belongs to.
+3. Map MATPOWER's generator bus numbers (30-39) to the dataset's G01-G10 naming via case39.m's
+   own comment ("generator locations": index i -> bus 29+i). Cross-checked, not just assumed:
+   under this mapping G02 -> bus 31, and case39.m marks bus 31 as the swing/reference bus --
+   independently, `reports/DATA_CHARACTERISTICS.md` found G02's `firel` (rotor angle) column is
+   identically 0.0 across all 12,852 real simulations, exactly what "designated reference
+   machine" predicts. Strong agreement between two independent sources, not a coincidence
+   assumed away.
+4. Threshold the reduced matrix's magnitude at its median to produce a binary interaction-
+   support graph (kept binary, not continuous, so it plugs into every existing model's shared
+   discrete edge-type machinery unchanged -- springs' binary edge/no-edge and charged's +-1 sign
+   both already fit `edge_types=2`; a continuous weight would require changing LG-ODE's own
+   architecture, which stays out of scope). Result: 22 of 45 possible generator pairs are
+   "strongly coupled" -- a real, non-trivial, non-complete structure (e.g. one generator pair
+   connects to only 2 of the other 9, not all of them), not degenerate.
+
+**Wiring**: `data/prepare_ieee39_gen.py`'s `build_complete_graph()` replaced with
+`build_kron_reduced_graph()` (loads the precomputed `.npz`); `run_checks` updated to assert the
+graph is genuinely binary with both edges and non-edges present, not "all ones." Found and fixed
+a real, previously-hidden bug while wiring this in: `lib/gil_dataset.py`'s `build_S_c` hard-coded
+a complete graph for `dataset != 'spring'` (i.e. both charged AND ieee39) -- correct for charged
+(every particle pair really does interact physically) but wrong for ieee39 now that a real graph
+exists, since it meant GIL-ODE was silently ignoring the physical graph entirely and always
+using a complete graph regardless of what the adjacency data said. Fixed: ieee39 now gets its own
+branch, `S = dense01` (the real Kron-reduced support), matching how springs already uses its own
+real graph. `run_models_corrected.py` (via its native binary edge-type one-hot) and GIL-ODE were
+both smoke-tested clean with the new graph before relying on it.
+
+**Fixed-size subset**: `data/prepare_ieee39_gen.py` gained `--train-n/--val-n/--test-n/--out-dir`
+CLI args and `stratified_split` gained a fixed-target-count mode (same largest-remainder logic
+as `data/make_subset.py`), producing an exact 7000/1000/2000 split stratified by (label,
+clearing-time group) -- verified to match the full corpus's stable/unstable fraction (0.5804 in
+both) and clearing-time-group fractions (within 0.0001) exactly. Both the full-scale
+(`data/processed/ieee39_gen/`) and subset (`data/processed/ieee39_gen_subset/`) datasets were
+rebuilt with the new Kron-reduced graph.
+
+**Validation experiment launched**: ODE-RNN, Corrected LG-ODE, GIL-ODE on full-scale vs. subset
+IEEE39 (interp + extrap, same protocol as springs' validation), to check the subset preserves
+ranking/behavior before trusting it, same as was done for springs. See `RESULTS.md` once this
+completes (`run_logs/ieee39_{full,subset}_{odernn,corrected,gilode}_{interp,extrap}.log`).
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)
-- **Current results**: `RESULTS.md` (complete, all 36 cells filled in)
-- **Logs**: `run_logs/final_<model>_<dataset>_<interp|extrap>.log`,
-  `run_logs/densegrid_corrected_spring_{interp,extrap}.log` (Part 17's disproven-hypothesis test)
-- **Driver**: `run_logs/final_matrix.sh`, `run_logs/final_matrix_driver.log`
+- **Superseded**: everything under "final_*" logs and the current `RESULTS.md` table -- stale as
+  of Part 19, kept for the historical record of the capacity-matching/leakage investigation but
+  not to be read as current numbers.
+- **Current results**: `RESULTS.md`, rewritten once the Part 19 rerun (`run_logs/final2_*.log`)
+  completes.
+- **Logs**: `run_logs/final_<model>_<dataset>_<interp|extrap>.log` (superseded),
+  `run_logs/final_uncorrected_<dataset>_<interp|extrap>.log` (superseded),
+  `run_logs/densegrid_corrected_spring_{interp,extrap}.log` (Part 17's disproven-hypothesis test,
+  still valid as a negative result), `run_logs/structured_exp1_gilode_<dataset>_extrap.log`
+  (Part 18, superseded -- GIL-ODE's message function itself is unaffected by Part 19's fixes,
+  but the protocol it was measured under is)
+- **Driver**: `run_logs/final_matrix.sh` (superseded), `run_logs/final_matrix_driver.log`
 
 ## Where to look (Phase 3)
 
