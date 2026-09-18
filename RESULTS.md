@@ -92,6 +92,61 @@ but the qualitative comparison a reader would draw from either table is the same
 
 Logs: `run_logs/subset_<model>_spring_<interp|extrap>.log`.
 
+## Charged subset validation (5000/1000/1000 vs. full-scale)
+
+Same three anchor models, same protocol.
+
+| Model / Task | Full-scale | Subset | Ratio |
+|---|---|---|---|
+| ODE-RNN interp | 0.180 | 0.265 | 1.47x |
+| ODE-RNN extrap | 8.828 | 7.631 | 0.86x |
+| Corrected LG-ODE interp | 0.904 | 0.975 | 1.08x |
+| Corrected LG-ODE extrap | 4.789 | 5.403 | 1.13x |
+| GIL-ODE interp | 0.153 | 0.192 | 1.26x |
+| GIL-ODE extrap | 8.319 | 8.359 | 1.00x |
+
+**Ranking is preserved**, same pattern as springs: interp has GIL-ODE and ODE-RNN both far
+ahead of Corrected LG-ODE at both scales (same order); extrap has Corrected LG-ODE decisively
+ahead of both baselines at both scales. GIL-ODE/ODE-RNN's extrap order flips between scales here
+too (GIL-ODE narrowly ahead full-scale, ODE-RNN narrowly ahead on the subset) — the same
+near-tie noise pattern seen on springs, not a ranking failure for the result that matters.
+
+Logs: `run_logs/final2_<model>_charged_<interp|extrap>.log` (full-scale; 5 of 6 cells came from
+the earlier `final2_matrix.sh` run before the subset pivot, Part 20 of `CHANGES.md`; only
+GIL-ODE charged-extrap was filled in separately), `run_logs/subset_<model>_charged_<interp|extrap>.log`.
+
+## IEEE39 subset (no full-scale comparison — see below for why)
+
+IEEE39's graph is fixed and shared across every trajectory (unlike springs/charged, where each
+trajectory has its own graph — the property springs/charged's validation was actually checking
+survives subsetting). The only thing an IEEE39 subset can distort is its (label, clearing-time)
+mix, which was already checked directly to 4 decimal places before training any model
+(`dataset.md`). Combined with springs/charged's full validation already confirming the
+subsetting *methodology* itself, a second full-scale-vs-subset trained-model comparison for
+IEEE39 was judged not to add proportionate evidence for its cost and was not run (`CHANGES.md`
+Part 21). These are the subset (7000/1000/2000) numbers directly.
+
+| Model / Task | MSE (x10^-2) |
+|---|---|
+| ODE-RNN interp | 1.102 |
+| Corrected LG-ODE interp | 7.938 |
+| GIL-ODE interp | 1.194 |
+| ODE-RNN extrap | 11.284 |
+| Corrected LG-ODE extrap | 13.440 |
+| GIL-ODE extrap | **8.235** |
+
+Same interp pattern as springs/charged (ODE-RNN and GIL-ODE close together, both far ahead of
+Corrected LG-ODE's VAE-bottleneck encoder). Extrap breaks the springs/charged pattern: **GIL-ODE
+wins outright here**, not Corrected LG-ODE — the most decisive win GIL-ODE has anywhere in this
+project, and consistent with earlier findings throughout this work that IEEE39-extrap was
+GIL-ODE's strongest cell. Worth noting this graph now differs from earlier IEEE39 results in
+this project's history: it's Kron-reduced from the real network (`dataset.md`), not the earlier
+complete-graph placeholder, and GIL-ODE's own graph-construction code was previously silently
+ignoring even that placeholder (`CHANGES.md` Part 21) — so this is the first IEEE39 result in
+the project where GIL-ODE actually uses real physical structure.
+
+Logs: `run_logs/ieee39_subset_<model>_<interp|extrap>.log`.
+
 ## What was run
 
 ```
@@ -107,8 +162,23 @@ python run_models_edgegnn.py   --data spring [--extrap True] --niters 50 --alias
 python run_models_rnnnri.py    --data spring [--extrap True] --niters 50 --hidden-dim 120 --alias <name>
 python run_models_gilode.py    --data spring [--extrap True] --niters 50 --hidden-dim 152 --alias <name>
 
-# Subset validation (3 anchor models x 2 tasks)
+# Subset validation, springs (3 anchor models x 2 tasks)
 python run_models_odernn.py    --data spring --dataset-dir data/spring_subset --val-fraction 0.166666667 [--extrap True] --niters 50 --hidden-dim 192 --alias <name>
 python run_models_corrected.py --data spring --dataset-dir data/spring_subset --val-fraction 0.166666667 [--extrap True] --niters 50 --alias <name>
 python run_models_gilode.py    --data spring --dataset-dir data/spring_subset --val-fraction 0.166666667 [--extrap True] --niters 50 --hidden-dim 152 --alias <name>
+
+# IEEE39 graph derivation + dataset builds (full-scale and fixed subset)
+python data/build_ieee39_kron_graph.py
+python data/prepare_ieee39_gen.py
+python data/prepare_ieee39_gen.py --train-n 7000 --val-n 1000 --test-n 2000 --out-dir data/processed/ieee39_gen_subset
+
+# Subset validation, charged (3 anchor models x 2 tasks) -- full-scale mostly already existed
+python run_models_odernn.py    --data charged --dataset-dir data/charged_subset --val-fraction 0.166666667 [--extrap True] --niters 50 --hidden-dim 192 --alias <name>
+python run_models_corrected.py --data charged --dataset-dir data/charged_subset --val-fraction 0.166666667 [--extrap True] --niters 50 --alias <name>
+python run_models_gilode.py    --data charged --dataset-dir data/charged_subset --val-fraction 0.166666667 [--extrap True] --niters 50 --hidden-dim 152 --alias <name>
+
+# IEEE39 subset only, no full-scale comparison (3 anchor models x 2 tasks)
+python run_models_odernn.py    --data ieee39 --dataset-dir data/processed/ieee39_gen_subset [--extrap True] --niters 50 --hidden-dim 192 --alias <name>
+python run_models_corrected.py --data ieee39 --dataset-dir data/processed/ieee39_gen_subset [--extrap True] --niters 50 --alias <name>
+python run_models_gilode.py    --data ieee39 --dataset-dir data/processed/ieee39_gen_subset [--extrap True] --niters 50 --hidden-dim 152 --alias <name>
 ```

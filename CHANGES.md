@@ -901,10 +901,34 @@ both) and clearing-time-group fractions (within 0.0001) exactly. Both the full-s
 (`data/processed/ieee39_gen/`) and subset (`data/processed/ieee39_gen_subset/`) datasets were
 rebuilt with the new Kron-reduced graph.
 
-**Validation experiment launched**: ODE-RNN, Corrected LG-ODE, GIL-ODE on full-scale vs. subset
-IEEE39 (interp + extrap, same protocol as springs' validation), to check the subset preserves
-ranking/behavior before trusting it, same as was done for springs. See `RESULTS.md` once this
-completes (`run_logs/ieee39_{full,subset}_{odernn,corrected,gilode}_{interp,extrap}.log`).
+**Validation scope decision**: a full-scale-vs-subset IEEE39 run was started (mirroring springs'
+validation exactly) but stopped partway through once the cost/benefit was reconsidered: IEEE39's
+graph is now fixed and shared across every trajectory (unlike springs/charged, where each
+trajectory has its own graph, which is what springs' validation was actually checking survives
+subsetting). What a IEEE39 subset can lose is only the (label, clearing-time-group) mix, and
+that was already verified by direct comparison to 4 decimal places before any model was ever
+trained (`stable_frac` identical, clearing-time-group fractions within 0.0001) -- a stronger,
+cheaper check than a trained-model comparison for exactly the property in question. Combined
+with springs' full model-level validation already having confirmed the subsetting *methodology*
+itself (stratified sampling + manifest verification) preserves ranking and behavior, a second
+full trained-model validation for IEEE39 was judged not to add proportionate evidence for its
+~10+ hour cost, and was stopped in favor of running the actual subset numbers needed for the
+comparison table directly. Charged got a partial version of the full comparison anyway, near-free:
+5 of 6 anchor-model full-scale cells already existed from the earlier `final2_matrix.sh` run
+before the subset pivot (Part 20), so only the one missing cell (GIL-ODE charged-extrap) was
+filled in rather than skipped outright -- see `RESULTS.md` for that comparison once complete.
+IEEE39's subset numbers (no full-scale comparison) and charged's subset-vs-full comparison are
+both in `run_logs/subset_*_charged_*.log` and `run_logs/ieee39_subset_*.log`.
+
+**Results**: charged's ranking is preserved between full-scale and subset, same pattern as
+springs (interp: GIL-ODE and ODE-RNN both far ahead of Corrected LG-ODE; extrap: Corrected
+LG-ODE decisively ahead of both, with the same GIL-ODE/ODE-RNN near-tie order flip springs also
+showed). IEEE39's subset results break the springs/charged extrap pattern: **GIL-ODE wins
+IEEE39-extrap outright** (8.235 vs. ODE-RNN's 11.284 and Corrected LG-ODE's 13.440 x10^-2) --
+the most decisive win GIL-ODE has anywhere in this project, and the first IEEE39 result where
+GIL-ODE is actually using real physical structure (its own graph-construction code was silently
+ignoring even the old complete-graph placeholder until this same part's fix, above). Full
+tables: `RESULTS.md`.
 
 ## Where to look (final corrected run)
 

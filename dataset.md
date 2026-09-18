@@ -100,10 +100,21 @@ same seed and method as springs, **stratified by the number of positive edges pe
 dense, not sparse). Matched the full population's 3-class distribution (4/6/10) to within
 ~0.001 at every class. Manifest: `data/charged_subset/subset_manifest.json`.
 
-**Subset validation**: not yet run (only springs and, as of this writing, IEEE39 have been
-explicitly validated against full-scale). The subset's stratification quality was verified the
-same way as springs' (manifest-checked), so it is expected to transfer similarly, but this is
-flagged as an assumption pending its own validation run, not claimed as verified.
+**Subset validation** (same three anchor models, same protocol as springs):
+
+| Model / Task | Full-scale MSE (x10^-2) | Subset MSE (x10^-2) | Ratio |
+|---|---|---|---|
+| ODE-RNN interp | 0.180 | 0.265 | 1.47x |
+| ODE-RNN extrap | 8.828 | 7.631 | 0.86x |
+| Corrected LG-ODE interp | 0.904 | 0.975 | 1.08x |
+| Corrected LG-ODE extrap | 4.789 | 5.403 | 1.13x |
+| GIL-ODE interp | 0.153 | 0.192 | 1.26x |
+| GIL-ODE extrap | 8.319 | 8.359 | 1.00x |
+
+Ranking preserved, same pattern as springs: interp (GIL-ODE and ODE-RNN both far ahead of
+Corrected LG-ODE, both scales); extrap (Corrected LG-ODE decisively ahead of both baselines,
+both scales). GIL-ODE/ODE-RNN's extrap order flips between scales, the same near-tie noise seen
+on springs, not a ranking failure. Full discussion: `RESULTS.md`.
 
 ## IEEE39-Gen
 
@@ -169,8 +180,14 @@ same (label, clearing-time-group) stratification as the full-scale split, via
 data/processed/ieee39_gen_subset`. Verified to match the full corpus's stable-fraction (0.5804 in
 both, to 4 decimal places) and clearing-time-group fractions (within 0.0001) exactly.
 
-**Subset validation**: launched (ODE-RNN, Corrected LG-ODE, GIL-ODE; full-scale vs. subset;
-interp + extrap; same protocol as springs). See `RESULTS.md` for the completed table.
+**Subset validation**: unlike springs/charged, IEEE39's graph is fixed and shared across every
+trajectory (there is no per-trajectory graph to lose by subsetting), so the only thing a subset
+can distort is the (label, clearing-time-group) mix — and that was already checked directly, to
+4 decimal places, before any model was trained (above). Combined with springs' full model-level
+validation already confirming the subsetting *methodology* itself preserves ranking and behavior,
+a second full-scale-vs-subset trained-model comparison for IEEE39 was judged not to add
+proportionate evidence for its cost (~10+ hours) and was not run; the subset numbers themselves
+(no full-scale comparison) are reported directly in `RESULTS.md`.
 
 ## Where to look
 
