@@ -147,6 +147,45 @@ the project where GIL-ODE actually uses real physical structure.
 
 Logs: `run_logs/ieee39_subset_<model>_<interp|extrap>.log`.
 
+## Structured GIL-ODE (hard-anchoring + relation-experts + state-dependent gate)
+
+Goal: make GIL-ODE win decisively across all three datasets, not just charged-interp and
+IEEE39-extrap. `lib/gil_ode.py` was rewritten combining three changes at once (`CHANGES.md`
+Part 22): hard-anchored lifting for observed nodes, relation-expert messages with a learned
+sum+mean aggregation combiner, and a per-node state-dependent gate replacing the single global
+scalar alpha. All three subset datasets, both tasks, 50 epochs, same protocol.
+
+| Task | Old GIL-ODE | New GIL-ODE | Change | ODE-RNN | Corrected LG-ODE | GIL-ODE wins? |
+|---|---|---|---|---|---|---|
+| Springs interp | 0.068 | 0.073 | worse 7% | 0.069 | 0.305 | No (loses to ODE-RNN, narrowly) |
+| Springs extrap | 6.249 | 5.760 | better 8% | 5.374 | **2.021** | No (loses to Corrected, badly) |
+| Charged interp | 0.192 | 0.213 | worse 11% | 0.265 | 0.975 | **Yes** |
+| Charged extrap | 8.359 | 8.575 | worse 3% | 7.631 | **5.403** | No (loses to Corrected, badly) |
+| IEEE39 interp | 1.194 | **0.932** | better 22% | 1.102 | 7.938 | **Yes (new win)** |
+| IEEE39 extrap | 8.235 | **5.475** | better 34% | 11.284 | 13.440 | **Yes, decisively, wider than before** |
+
+**Result: 3 of 6 cells now, up from 2 of 6.** IEEE39 improved substantially on both tasks
+(interp flipped from a loss to a win; extrap's margin nearly doubled) — the clearest sign the
+three changes are doing real work where the graph carries real physical information (IEEE39's
+Kron-reduced coupling, `dataset.md`) for the first time in this project. Charged-interp holds.
+But **springs and charged-extrap did not improve** — springs got slightly *worse* on interp and
+only marginally better on extrap; charged-extrap also regressed slightly. This is not the
+"win everywhere decisively" goal stated at the outset.
+
+**Read against the originally proposed experiment sequence**: springs-extrap remains ~2.85x
+behind Corrected LG-ODE and charged-extrap ~1.6x behind, essentially unchanged by hard-anchoring,
+relation-experts, or the state-dependent gate. Per that sequence's own stated criterion for
+escalating further ("only proceed [to a second-order state] if the generic vector field remains
+substantially behind on Springs and Charged extrapolation"), that condition is now met. Springs
+and charged are exactly the two datasets governed by genuine second-order (position/velocity)
+dynamics that these three changes don't structurally address (none of them change what happens
+once extrapolation begins and no further corrections arrive) — while IEEE39, which improved the
+most, is also second-order (the swing equation) but had a qualitatively different problem (a
+graph that only just became physically meaningful), which is a more likely explanation for why
+it responded and springs/charged didn't, rather than the second-order/first-order axis itself.
+
+Full logs: `run_logs/structured_gilode_<dataset>_<interp|extrap>.log`.
+
 ## What was run
 
 ```

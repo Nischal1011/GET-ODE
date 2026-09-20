@@ -930,6 +930,58 @@ GIL-ODE is actually using real physical structure (its own graph-construction co
 ignoring even the old complete-graph placeholder until this same part's fix, above). Full
 tables: `RESULTS.md`.
 
+## Part 22 — Structured GIL-ODE: combining hard-anchoring, relation-experts, and a state-dependent gate
+
+Goal, stated directly by request: make GIL-ODE win decisively across all three datasets, not
+just the 2 of 6 cells (charged-interp, IEEE39-extrap) it held going into this. Experiment 1
+(isolating relation-expert + sum aggregation alone) had already shown that changing the vector
+field in isolation wasn't enough -- mixed result, charged regressed. This revision implements
+all three of the previously-proposed changes together in `lib/gil_ode.py`, since the earlier
+isolated test showed the vector field's weaknesses interact with each other (aggregation choice,
+gate flexibility) rather than being independently fixable one at a time:
+
+1. **Hard-anchored innovation lifting** (`GraphLifting`): rows of the linear solve for observed
+   nodes are now the identity exactly (`delta_i = r_i`, no Laplacian smoothing, no leakage from
+   other nodes), implemented as a single `torch.where` replacing the whole row rather than just
+   the diagonal entry that was previously contaminating it. Unobserved rows are unchanged.
+   `GILODEModel.forward`'s update now applies the confidence gate (`GateNet`) only to unobserved
+   nodes' inferred corrections; observed nodes get their exact correction unconditionally.
+2. **Relation-expert, sum-and-mean aggregated messages** (`GILODEFunc`): `phi_pos`/`phi_neg`
+   (selected by sign of `c_ij`, as in Experiment 1) now also take the pairwise difference
+   `h_j - h_i`; a new `psi` net learns to combine sum- and mean-aggregated messages plus
+   `log(1+degree)`, rather than committing to sum alone (which helped springs but hurt charged
+   in Experiment 1) or mean alone (the original design).
+3. **State-dependent gate** (`GILODEFunc`): the single global scalar `alpha` is gone, replaced
+   by a per-node gate `sigmoid(gate_net([h_i, m_i, log(1+deg_i)]))`, warm-started near 0.1 via a
+   biased final layer (same rationale as alpha's own earlier warm-start). This directly targets
+   the single-scalar fragility already observed (boosting alpha's LR helped IEEE39, overshot on
+   charged) by letting the gate vary per node/state/trajectory instead of being one shared number.
+
+**Fallout from removing the scalar alpha**: `run_models_gilode.py`'s alpha-specific optimizer
+param group and LR-annealing schedule (Part 12) no longer apply -- removed, back to a single
+optimizer group. `lib/baseline_gil_ode.py`'s repurposed `kl_first_p` slot (which tracked alpha)
+now reports 0.0 -- no single scalar to track anymore. Both were straightforward deletions once
+the AttributeError from the first smoke test attempt caught the leftover references.
+
+Smoke-tested on all three datasets, both interp and extrap, before running anything substantial
+-- clean, no NaNs. One thing double-checked, not assumed: springs-extrap's smoke test showed
+val MSE ~100x lower than test MSE within the same epoch, which looked alarming until checked
+against the *old* architecture's own logs for the same cell (`final2_gilode_spring_extrap.log`,
+`final2_corrected_spring_extrap.log`) and found identically present there too -- a pre-existing
+property of how extrapolation's val split is built (from train-type trajectories with no real
+second extrapolation window, per `corrected_dataLoader.py`'s own docstring), not something this
+revision introduced.
+
+**Result** (full table in `RESULTS.md`): 3 of 6 cells now (charged-interp, IEEE39-interp new,
+IEEE39-extrap), up from 2 of 6. IEEE39 improved substantially on both tasks (interp flipped to a
+win, extrap's margin nearly doubled: 8.235 -> 5.475 x10^-2 vs. the next-best model's 11.284).
+Charged-interp holds. Springs and charged-extrap did not improve (springs interp slightly worse,
+extrap only marginally better; charged-extrap slightly worse) -- not the "win everywhere
+decisively" goal. Since springs/charged-extrap remain substantially behind Corrected LG-ODE
+(~2.85x and ~1.6x respectively) essentially unchanged by any of the three changes here, the
+condition the original experiment sequence set for escalating to a second-order (position/
+velocity) state representation is now met for those two datasets specifically.
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)

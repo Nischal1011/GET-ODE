@@ -124,20 +124,13 @@ if __name__ == '__main__':
     logger.info(str(args))
     logger.info(args.alias)
 
-    # alpha (the ODE-drift graph-coupling gate) gets a boosted LR and no weight decay: as a single
-    # scalar sharing the global LR with the rest of the network, it was starved of gradient signal
-    # under long extrapolation horizons and settled back near its init instead of learning to turn
-    # on where the graph term mattered (see CHANGES.md).
-    alpha_params = [model.core.ode_func.alpha]
-    other_params = [p for n, p in model.named_parameters() if n != "core.ode_func.alpha"]
-    param_groups = [
-        {"params": other_params, "lr": args.lr, "weight_decay": args.l2},
-        {"params": alpha_params, "lr": args.lr * 10, "weight_decay": 0.0},
-    ]
+    # The single global scalar alpha (which needed a boosted LR to escape starvation, see
+    # CHANGES.md) is gone -- replaced by a per-node state-dependent gate (lib/gil_ode.py), which
+    # doesn't share that failure mode, so no special param group is needed anymore.
     if args.optimizer == "AdamW":
-        optimizer = optim.AdamW(param_groups)
+        optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.l2)
     else:
-        optimizer = optim.Adam(param_groups)
+        optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.l2)
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 1000, eta_min=1e-9)
 
@@ -179,18 +172,7 @@ if __name__ == '__main__':
             epo, np.mean(loss_list), np.mean(mse_list), np.mean(likelihood_list))
         return message_train
 
-    ALPHA_GROUP_IDX = 1  # param_groups[1] is the alpha-only group set up above
-
     for epo in range(1, args.niters + 1):
-        # Anneal alpha's LR boost from 10x down to 1x over the run (was a flat 10x): alpha grew
-        # far past where it helped on charged (up to 4.05, MSE slightly worse) while it was still
-        # the right magnitude on IEEE39/springs -- decaying the boost lets it explore early and
-        # settle rather than overshoot for the whole run. scheduler.step() below re-touches this
-        # group's LR based on the shared cosine schedule, so it's reset here before each epoch's
-        # batches use it, not after.
-        alpha_boost = 1.0 + 9.0 * max(0.0, 1.0 - (epo - 1) / max(1, args.niters - 1))
-        optimizer.param_groups[ALPHA_GROUP_IDX]['lr'] = args.lr * alpha_boost
-
         message_train = train_epoch(epo)
 
         model.eval()
@@ -205,11 +187,10 @@ if __name__ == '__main__':
         message_test = 'Epoch {:04d} [Test seq, diagnostic only] | Loss {:.6f} | MSE {:.6F} | Likelihood {:.6f}|'.format(
             epo, test_res["loss"], test_res["mse"], test_res["likelihood"])
 
-        alpha_val = model.core.ode_func.alpha.data.item()
         lam_val = torch.nn.functional.softplus(model.core.lifting.log_lambda).data.item()
         rho_val = torch.nn.functional.softplus(model.core.lifting.log_rho).data.item()
-        message_graph = 'Epoch {:04d} [Graph params] | alpha {:.4f} | lambda {:.4f} | rho {:.4f}|'.format(
-            epo, alpha_val, lam_val, rho_val)
+        message_graph = 'Epoch {:04d} [Graph params] | lambda {:.4f} | rho {:.4f}|'.format(
+            epo, lam_val, rho_val)
 
         logger.info("Experiment " + str(experimentID))
         logger.info(message_train)

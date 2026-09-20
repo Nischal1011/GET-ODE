@@ -43,6 +43,6 @@ class GILODEBaseline(VAE_Baseline):
             "loss": loss,
             "likelihood": torch.mean(rec_likelihood).data.item(),
             "mse": torch.mean(mse_val).data.item(),
-            "kl_first_p": self.core.ode_func.alpha.data.item(),  # repurposed slot: track alpha's growth
+            "kl_first_p": 0.0,  # no single scalar to track anymore -- gate is now per-node/state-dependent
             "std_first_p": 0.0,
         }
