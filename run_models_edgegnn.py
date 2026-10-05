@@ -51,6 +51,7 @@ parser.add_argument('--extrap_num', type=int, default=40)
 parser.add_argument('--rec_attention', type=str, default="attention")
 parser.add_argument('--alias', type=str, default="run")
 parser.add_argument('--dataset-dir', type=str, default=None)
+parser.add_argument('--val-fraction', type=float, default=None, help='Override CorrectedParseData.VAL_FRACTION (e.g. for fixed-size subsets to hit an exact split)')
 
 args = parser.parse_args()
 assert (int(args.rec_dims % args.n_heads) == 0)

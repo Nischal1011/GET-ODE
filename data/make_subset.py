@@ -102,6 +102,7 @@ def main():
     p.add_argument('--dataset', choices=['spring', 'charged'], required=True)
     p.add_argument('--train-pool-size', type=int, default=6000)
     p.add_argument('--test-size', type=int, default=1000)
+    p.add_argument('--val-size', type=int, default=1000)
     p.add_argument('--seed', type=int, default=20260916)
     p.add_argument('--out-dir', type=str, default=None)
     args = p.parse_args()
@@ -115,16 +116,34 @@ def main():
     rng = np.random.default_rng(args.seed)
 
     manifest = {'dataset': args.dataset, 'seed': args.seed, 'source_dir': src,
-                'train_pool_size': args.train_pool_size, 'test_size': args.test_size}
+                'train_pool_size': args.train_pool_size, 'test_size': args.test_size,
+                'val_size': args.val_size, 'val_drawn_from': 'test pool, disjoint from test'}
 
-    for split, target_n in [('train', args.train_pool_size), ('test', args.test_size)]:
-        loc = np.load(f'{src}/loc_{split}{suffix}.npy', allow_pickle=True)
-        vel = np.load(f'{src}/vel_{split}{suffix}.npy', allow_pickle=True)
-        edges = np.load(f'{src}/edges_{split}{suffix}.npy', allow_pickle=True)
-        times = np.load(f'{src}/times_{split}{suffix}.npy', allow_pickle=True)
+    # 'val' is drawn from the TEST pool, disjoint from the test selection -- not from the train
+    # pool. Validation must measure the same task test measures: for extrapolation, train-pool
+    # trajectories have only one window and so can only pose a short train-style forecast, which
+    # a model with strong assimilation solves almost immediately, flattening the metric and
+    # destroying its ability to select checkpoints (measured: best-val at epoch 1 of 50). Test-pool
+    # trajectories carry the genuine second forecast window. See gl-ode.md section 6.
+    test_pool_taken = None
+    for split, target_n in [('train', args.train_pool_size), ('test', args.test_size),
+                            ('val', args.val_size)]:
+        src_split = 'test' if split in ('test', 'val') else 'train'
+        loc = np.load(f'{src}/loc_{src_split}{suffix}.npy', allow_pickle=True)
+        vel = np.load(f'{src}/vel_{src_split}{suffix}.npy', allow_pickle=True)
+        edges = np.load(f'{src}/edges_{src_split}{suffix}.npy', allow_pickle=True)
+        times = np.load(f'{src}/times_{src_split}{suffix}.npy', allow_pickle=True)
 
         keys = [key_fn(edges[i]) for i in range(len(edges))]
-        selected = stratified_sample(keys, target_n, rng)
+        if split == 'val':
+            # Exclude everything the test split already claimed, so the two are disjoint.
+            avail = np.array([i for i in range(len(keys)) if i not in test_pool_taken])
+            sub_keys = [keys[i] for i in avail]
+            selected = [int(avail[j]) for j in stratified_sample(sub_keys, target_n, rng)]
+        else:
+            selected = stratified_sample(keys, target_n, rng)
+        if split == 'test':
+            test_pool_taken = set(selected)
 
         full_dist = distribution(keys, list(range(len(keys))))
         sub_dist = distribution(keys, selected)

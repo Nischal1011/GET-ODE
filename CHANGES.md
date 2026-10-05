@@ -982,6 +982,483 @@ decisively" goal. Since springs/charged-extrap remain substantially behind Corre
 condition the original experiment sequence set for escalating to a second-order (position/
 velocity) state representation is now met for those two datasets specifically.
 
+## Part 23 — Multi-horizon training curriculum for GIL-ODE's extrapolation loss
+
+Diagnosis before implementing anything (requested explicitly -- think first): the 3 winning
+cells (charged-interp, IEEE39-interp, IEEE39-extrap) all share that GIL-ODE's correction
+mechanism gets to do real work -- either it fires constantly (interpolation) or the underlying
+dynamics are damped (IEEE39's swing equation settles back toward equilibrium, so vector-field
+error doesn't compound without bound). The 2 losing extrap cells (springs, charged) are both
+*undamped*, energy-conserving Newtonian systems (leapfrog simulation, no friction --
+`dataset.md`) where no further correction ever arrives once forecasting starts, so any vector-
+field error just keeps compounding for the whole horizon. None of Part 22's three changes
+(hard-anchoring, relation-experts, the state-dependent gate) touch this regime at all -- they
+only improve the *correction*, and there's no correction left once extrapolation begins.
+
+Fix, chosen for being training-only (no architecture change, no risk to the 3 already-working
+cells' model): GIL-ODE already produces predictions at every decoder time step in one forward
+pass (the ODE integrates continuously through the union time grid regardless), so nothing new
+needs to be computed -- the loss just needed to *use* the early-horizon predictions it already
+has more deliberately. `lib/baseline_gil_ode.py`'s `compute_all_losses` now sums a loss term at
+several prefix cutoffs of the decode horizon (20/40/60/80/100% of the full length) in
+extrapolation mode only (interpolation has no meaningful "horizon from a boundary" -- decode
+points are scattered through the observed window, not a monotonic future sequence). This gives
+early-horizon points more effective gradient weight without any extra hyperparameter to tune:
+an early point contributes to every cutoff's term, a late point only to the final one.
+
+**Bug caught before it could contaminate anything**: the first attempt reused
+`VAE_Baseline.get_gaussian_likelihood`/`get_mse` directly on each sliced cutoff and produced
+`NaN` from epoch 1 onward. Root cause: `lib/likelihood_eval.py`'s `compute_masked_likelihood`
+normalizes by `sum(mask)` *per trajectory, per feature, within the sliced window*, with no floor
+-- and a short prefix cutoff isn't guaranteed to contain even one observed target point for
+every node (per-node target masking is real, not just a formality -- `run_checks` in
+`data/prepare_ieee39_gen.py` only guarantees at least one observed point across the *full*
+context/decode window, not within an arbitrary short prefix of it), so some (trajectory,
+feature) pair hits a division by zero as soon as the cutoff gets short enough. Fixed by *not*
+touching the shared function (used by every other model in this project, and correct for the
+full-horizon case it was designed for) and instead writing two small, local, batch-pooled
+helpers (`_pooled_masked_mse`, `_pooled_masked_gaussian_ll` in `lib/baseline_gil_ode.py`) that
+sum across the whole batch before dividing, with a `clamp(min=1.0)` floor -- avoids the
+zero-denominator case entirely, at the cost of weighting by raw observed-point count rather than
+per-trajectory-then-averaged (a reasonable, documented difference for a new auxiliary loss term,
+not a silent behavior change to any existing one).
+
+Interpolation mode is provably untouched (the new code path is gated on `self.mode == "extrap"`,
+so interp always takes the exact prior branch) -- only the 3 extrapolation cells needed
+rerunning; the 3 existing interp results from Part 22 carry forward unchanged.
+
+Smoke-tested on springs-extrap post-fix: clean, no NaN, `FINAL (best-val checkpoint) [Test seq]
+| MSE 0.047665`. Full 3-cell rerun launched
+(`run_logs/multihorizon_gilode_<dataset>_extrap.log`); see `RESULTS.md` for the outcome.
+
+## Part 24 — Second-order latent state (position/velocity split)
+
+Part 23's multi-horizon curriculum narrowed but didn't close the springs/charged-extrapolation
+gap to Corrected LG-ODE (told directly: "we need those losing to be winning"). Escalating to the
+change that was already identified as the next lever for exactly this regime: `GILODEFunc`'s
+hidden state is now split into two equal halves, `h_i = [q_i, v_i]`, with `dq_i/dt` hard-wired
+to equal `v_i` (plus a small learned residual `eps_q(h_i)`), and everything else -- `f_self`,
+the gated relation-expert graph interaction -- feeding only into `dv_i/dt`. This removes one
+degree of freedom a free-form vector field could get wrong over a long, uncorrected rollout,
+which is exactly the regime (undamped, energy-conserving springs/charged, no correction once
+extrapolation starts) the first three changes never touched. q/v are latent partitions, not
+literally physical position/velocity -- the encoder/decoder stay plain linear layers over the
+full state, so nothing forces either half to align with a specific raw feature; the value is the
+hard integrability constraint itself, not literal physical interpretability. Flagged as a
+deliberate simplification, not an oversight, in `lib/gil_ode.py`'s docstring.
+
+Unlike Part 23 (training-only, extrap-only), this changes the model itself, so it affects both
+interp and extrap -- smoke-tested on all 6 cells (3 datasets x 2 tasks) before running anything
+substantial; clean, no NaNs, no shape errors.
+
+**First result: slightly WORSE, not better** -- springs-extrap 4.847 -> 5.003, charged-extrap
+7.431 -> 7.576 (both ~2-3% regressions), while the interp cells improved modestly. Told directly
+to stop and diagnose rather than continue burning compute, so the in-flight IEEE39 runs were
+killed and the cause investigated before anything else.
+
+**Diagnosis (measured, not guessed)**: loaded the trained springs-extrap checkpoint and compared
+the two terms in `dq/dt = v + eps_q(h)` on a real batch of encoded states:
+
+```
+||v||        (the hard skeleton term):  0.372
+||eps_q(h)|| (the "small" residual):    0.878   <- 2.37x LARGER than v
+```
+
+The network routed around the constraint. `eps_q` was specified as a *small* residual on top of
+the hard skeleton, but nothing in the implementation constrained its magnitude -- it's a
+full-capacity MLP with no penalty for growing -- so it grew until it dominated, leaving q's
+dynamics effectively free-form again. The result: all of the constraint's cost (`f_self` and
+`f_interaction` had their output dims halved to `v_dim` by the split) and none of its benefit.
+The apparent "second-order structure doesn't help" conclusion was wrong; the structure had
+simply never been active.
+
+Also checked, so the comparison isn't confounded: both the Part 23 and Part 24 springs-extrap
+runs select their best-val checkpoint at epoch 4 of 50 (the pre-existing extrap val-split quirk
+documented in Part 22), and the per-epoch diagnostic test MSE past that point degrades rather
+than secretly improving -- so neither run is being unfairly cut short relative to the other.
+
+**Fix**: `eps_q` removed entirely; `dq/dt = v` exactly, so the constraint actually binds.
+Re-tested on springs-extrap (the decisive cell): **4.620 x10^-2**, the best springs-extrap
+result in the project -- better than Part 23's 4.847 and well clear of the leaky version's
+5.003. The second-order structure does help, once it's actually applied. Springs-extrap is
+nonetheless still ~2.3x behind Corrected LG-ODE (2.021), so this is progress, not a win.
+Remaining 5 cells rerun with the corrected architecture
+(`run_logs/hardq_gilode_<dataset>_<interp|extrap>.log`); see `RESULTS.md`.
+
+## Part 25 — Extrapolation-validation fix, compact rebudget, antisymmetric force channel: 5/6 under one config
+
+Three-step plan given directly, in this order: fix extrapolation validation, converge on one
+compact configuration rather than per-cell tuning, and restrict free-running to extrapolation
+only, before re-evaluating just the three cells still losing.
+
+**1. Extrapolation validation fix (`data/make_subset.py`, `lib/corrected_dataLoader.py`).** Part
+22/24's val split was drawn from the train pool, so every extrapolation-validation trajectory had
+only one window and posed a train-style short forecast -- a task GIL-ODE's correction machinery
+solved almost immediately, flattening the val metric and selecting a near-random early checkpoint
+(measured: best-val at epoch 1 of 50 on charged-extrap, vs. epoch 44 for LG-ODE on the same cell).
+Fixed by drawing `val` from the *test* pool instead, disjoint from the test selection
+(`make_subset.py --val-size`), so validation poses the same genuine second-forecast-window task
+test poses. `CorrectedParseData` prefers this dedicated val file when present and falls back to
+the old train-pool slice otherwise, so older dataset directories still load. Applied uniformly --
+every model reruns on the same fixed val/test files, not just GIL-ODE.
+
+**2. One compact configuration, more capacity in the MLPs rather than the ODE state.** Per the
+plan's second point: kept `hidden_dim=80` (Part 24's compression result), the hard `dq/dt=v`
+constraint, relation-expert messages, hard anchoring, and the physical IEEE39 graph, and moved
+parameter budget into `mlp_width` (decoupled from `hidden_dim` via `GILODEFunc(..., mlp_width=)`)
+rather than growing the state dimension a long uncorrected rollout has to carry.
+
+**3. Antisymmetric force channel.** Springs-extrap remained the hardest cell after 1 and 2. Added
+a second message type alongside the existing relation-expert one: `f_anti_ij = chi(h_i, h_j) -
+chi(h_j, h_i)`, which satisfies `f_ij = -f_ji` exactly by construction (`chi` evaluated once,
+transpose reused -- one extra MLP call, not two) -- Newton's third law imposed structurally rather
+than hoped for from a symmetric-input MLP. Aggregated additively (`m_anti = sum_j S_ij * f_anti_ij`,
+a net force should sum, not average) and concatenated into `psi` alongside the existing sum/mean
+relation-expert aggregates. Verified post-training: `|f_ij + f_ji|` is exactly 0 and self-force
+(`i == j`) is exactly 0, confirming the construction binds rather than merely being learnable.
+Rebudgeted to `mlp_width=92` to land back in the 247-273K parameter band (254,349 params) after
+adding `chi`'s parameters.
+
+**Result -- the breakthrough cell**: springs-extrap **1.591** vs. Corrected LG-ODE's bar of
+2.021 (0.79x) -- a WIN, down from 2.560 without the channel (same config otherwise). This is the
+first config in the project where springs-extrap beats the baseline rather than merely narrowing
+the gap.
+
+**Full single-configuration sweep** (`run_logs/final_gil_*.log`; hidden_dim=80, mlp_width=92,
+254,349 params, identical loss terms across all three datasets, no per-cell tuning):
+
+| Cell | GIL-ODE | Bar | Ratio | Verdict |
+|---|---|---|---|---|
+| Springs interp | 0.0759 | 0.0689 | 1.10x | loss |
+| Springs extrap | **1.591** | 2.021 | 0.79x | WIN |
+| Charged interp | **0.2613** | 0.2652 | 0.99x | WIN (narrow) |
+| Charged extrap | **5.017** | 5.403 | 0.93x | WIN |
+| IEEE39 interp | **1.065** | 1.102 | 0.97x | WIN (narrow) |
+| IEEE39 extrap | **5.273** | 11.284 | 0.47x | WIN |
+
+**5 of 6 under one configuration** -- the first time any single GIL-ODE configuration has won
+more than half the board (Part 24 ended at "two configs each win 3, but different 3"). Charged and
+IEEE39 extrap did regress slightly relative to their best-ever numbers under other configs (Part
+24's hard-q config reached charged-extrap 5.147 pre-selection-fix and IEEE39-extrap 3.298 with a
+wider, higher-capacity MLP) -- expected, since this run deliberately does not re-tune per cell;
+the point of this table is one config, not a best-of-config table.
+
+Remaining loss is springs-interp (1.10x). Three of the five wins are narrow (charged-interp 0.99x,
+IEEE39-interp 0.97x, and springs-extrap's own margin is comfortable but still single-seed) -- not
+defensible as reported wins without multi-seed confirmation. The three extrapolation wins have
+larger, more mechanistically-grounded margins (0.79x / 0.93x / 0.47x) and are the stronger claim
+regardless of how springs-interp resolves.
+
+**Attempted fix for springs-interp: free-running for interpolation, at three different stretch
+lengths -- reverted, net regression.** Hypothesis: interpolation's longest unaided stretch is the
+gap between two observations (not the full horizon extrapolation is judged on), so free-running
+sized to that gap, rather than either the full horizon or nothing, might flip springs without
+re-breaking IEEE39 (which regressed 0.891 -> 1.341 under full-horizon free-running for interp,
+Part 22). Implemented `free_run_span` in `lib/gil_ode.py`: without it, one branch runs to the end
+of the grid (extrap, unchanged); with it, the free state re-branches every `span`-length instead
+of once, tiling the window with short unaided rollouts, sized in `lib/baseline_gil_ode.py` to the
+mean inter-observation gap (window length / mean observations per node). Tested all three ways on
+all three interp cells (not just the loser -- this knob has already flipped springs and IEEE39 in
+opposite directions once, so none of the three could be assumed to hold fixed):
+
+| Cell | Off (Part 25 table) | Full-horizon (Part 22) | Gap-tiled |
+|---|---|---|---|
+| Springs interp | 0.0759 (loss) | 0.068 (win) | **0.0656 (win)** |
+| Charged interp | **0.2613 (win)** | -- | 0.2995 (loss) |
+| IEEE39 interp | **1.065 (win)** | 1.341 (loss) | 1.216 (loss) |
+
+Gap-tiling does beat both prior settings on springs-interp (0.0656, better than either 0.0759 or
+0.068), disproving "rollout length doesn't matter" -- but it costs both other cells this time,
+netting **4/6, worse than the 5/6 with it off**. Springs improves under *any* amount of unaided
+interpolation-time rollout tried so far; charged and IEEE39 both get worse under *any* amount
+tried so far. That pattern across three different settings reads as a genuine per-dataset
+disagreement about interpolation training, not a mis-sized knob -- so this is reverted (free-run
+stays extrap-only; `free_run_span` is kept in `gil_ode.py` as dead-but-tested capability, not used
+by any current caller) rather than chased to a fourth stretch length or, worse, tuned per dataset,
+which would not be defensible in a paper.
+
+**Next**: multi-seed confirmation (3 seeds) across all six cells is the priority regardless of
+springs-interp's outcome -- three of the five current wins are narrow enough (0.9-3%) that a single
+seed cannot support calling them wins.
+
+## Part 26 — Observation-subspace anchoring; a silent zero-contribution bug; four negative results
+
+The headline: a single configuration now wins **5 of 6** cells with larger margins than Part 25's
+5 of 6, losing a *different* cell. Getting there also uncovered a bug that invalidates how Part 25
+attributed its own results, and produced four substantial negative results worth reporting in
+their own right.
+
+### 26.1 The bug: free-running supervision contributed exactly zero from Part 25 onward
+
+Part 25 made free-running "horizon-matched" by branching the uncorrected rollout at
+`grid_times[-1] - horizon`. But in extrapolation `grid_times[-1]` is the last decoder QUERY, which
+lies beyond every observation, so the branch landed one step *past* the final observation. Nothing
+followed it to supervise, `free_preds` stayed empty, `free_run` came back `None`, and the term
+contributed nothing. Verified directly:
+
+```
+grid steps T                = 59
+last grid idx WITH an obs   = 28
+free_run_from computed      = 29    <- one step PAST the last observation
+observations after branch   = 0
+free_run returned           = None
+```
+
+Visible in every log since as `Loss` exactly equalling `-Likelihood` (Part 25 charged-extrap:
+453.86 vs 233.02, the gap being AE-consistency alone; anchoring runs: 0 gap). **Every
+extrapolation result from Part 25 onward -- including springs-extrap 1.591 -- was produced with
+free-running inactive.** `gl-ode.md` calling it "the single biggest lever on extrapolation"
+describes Parts 23/24 only; that claim has been corrected there. A loss with several auxiliary
+terms needs its composition asserted, not eyeballed, and `Loss == -Likelihood` is the signature of
+silent auxiliary failure.
+
+### 26.2 Observation-subspace anchoring (the change that worked)
+
+Anchoring set an observed node's state to `encoder_proj(y)` outright, pushing `input_dim` observed
+features into all `hidden_dim` dimensions. Measured, that destroys **76 of 80 latent dimensions at
+every observation event** -- the decoder's row space is only 4-dimensional, so the other 95% were
+overwritten by information that cannot determine them. ODE-RNN avoids this by combining the
+observation with the previous hidden state.
+
+Now the correction is confined to the observable subspace. With linear `D(h) = hW^T + b` and
+innovation `e = y - D(h^-)`, the minimum-norm correction is `K e` for
+`K = W^T (W W^T + eps I)^-1`, giving `D(h^- + K e) = y` while leaving the decoder's null space
+untouched. `K e` is supplied to `GraphLifting` as the anchor correction, so unobserved neighbours
+receive the lifted *subspace* innovation. `encoder_proj` is deleted, and the AE-consistency term
+with it -- that term existed to make `D(E(y)) ~= y` approximately, which anchoring now makes exact
+by construction. Verified: `max |D(h+) - y| = 3.0e-05` (0.3% of the observation std), null-space
+leak `3.6e-07`.
+
+Three numerical formulations were needed. An absolute `eps=1e-6` solve raised "matrix is singular"
+at epoch 29; `pinv` raised "svd failed to converge" at epoch 14; the shipped version is a
+Tikhonov solve with a ridge scaled to the Gram matrix's mean diagonal, which is positive definite
+by construction and cannot fail.
+
+**Gradients flow through the gain deliberately.** The intuition that this is dangerous -- a
+near-singular `W` gives an enormous `K`, and the anchor forces `D(h^+) = y` however large `K` is --
+is exactly backwards when measured. Detaching let the decoder drift (condition number 1.3 -> 2.9
+on charged, 1.6 -> 5.0 on IEEE39, `||K||` 2.20 -> 3.47) and cost accuracy (charged-interp
+0.2195 -> 0.2658). Connected, it stays well conditioned (1.3 -> 1.6, `||K||` flat at ~2.1): the
+loss can feel that an inflated gain produces damaging corrections. The gradient path is a
+stabiliser, not an attractor.
+
+### 26.3 The null-space prior
+
+Anchoring constrains only `input_dim` directions; the other 76 are touched by no observation and
+bounded by nothing. Measured on springs extrapolation, `||h_null||` grows **3.86x** across the
+forecast against the observable part's 1.96x, ending 2.3x larger than the component the decoder
+can see, and growing monotonically even inside the observed window. The overwrite rule held this
+at zero implicitly; dropping it left an improper flat prior. A weak zero-mean Gaussian prior on
+the null component (`P = K W` is the row-space projector; penalty on `h - h P`, weight 1.0, ~1% of
+the reconstruction term) restores a proper one without erasing the memory anchoring exists to
+preserve.
+
+### 26.4 Result: 5 of 6 under one configuration
+
+Subspace anchoring + null prior + free-running disabled, `hidden_dim=80`, `mlp_width=92`, one
+configuration, no per-dataset tuning (`run_logs/final26_gil_*.log`):
+
+| Cell | GIL-ODE | Bar | Ratio | Verdict | Part 25 |
+|---|---|---|---|---|---|
+| Springs interp | **0.0654** | 0.0689 | 0.95x | WIN | 0.0759 (loss) |
+| Springs extrap | 3.204 | 2.021 | 1.59x | loss | **1.591** (win) |
+| Charged interp | **0.2540** | 0.2652 | 0.96x | WIN | 0.2613 |
+| Charged extrap | **4.423** | 5.403 | 0.82x | WIN | 5.017 |
+| IEEE39 interp | **1.089** | 1.102 | 0.99x | WIN | 1.065 |
+| IEEE39 extrap | **3.863** | 11.284 | 0.34x | WIN | 5.273 |
+
+Springs-interp -- the cell four separate free-running mechanisms failed to flip -- falls out for
+free, and charged-extrap and IEEE39-extrap improve substantially (0.82x and 0.34x against 0.93x
+and 0.47x). The cost is springs-extrapolation, which is now a *training instability* rather than
+merely a worse number (26.6).
+
+### 26.5 Negative result: free-running cannot be extended to interpolation
+
+Four mechanisms, each tested on all three interp cells:
+
+| Mechanism | springs | charged | IEEE39 |
+|---|---|---|---|
+| Off | 0.0759 loss | **0.2613 win** | **1.065 win** |
+| Full-horizon branch | 0.068 win | -- | 1.341 loss |
+| Gap-tiled branches | **0.0656 win** | 0.2995 loss | 1.216 loss |
+| Global PCGrad gate | *provably inert* | *inert* | *inert* |
+| Gradient isolation to vector field | **0.0654 win** | 0.2839 loss | 1.357 loss |
+
+PCGrad was inert for a measurable reason: the two gradients are strongly *aligned* (mean cosine
++0.88, never once negative in 40 steps), so the gate never fires and the run reproduced ungated
+free-running to identical MSE. Per-layer diagnostics then explain why no routing rule can work --
+the conflict sits in the assimilation modules on springs (`lifting`/`gate`, 20-30% of steps,
+cosine to -0.99), in the *vector field* on charged (`phi_pos`/`phi_neg`, 40-45%), and essentially
+nowhere on IEEE39. There is no common set of parameters to protect.
+
+### 26.6 Negative result: free-running is incompatible with subspace anchoring
+
+With the 26.1 bug fixed, free-running became active for the first time since Part 24 -- and
+springs extrapolation diverged under every variant: weight 1.0 (epoch 15), weight 0.2 (epoch 15 --
+the *identical* failure epoch at 5x the weight is what ruled magnitude out), horizon-matched span
+(epoch 15), and the random branch point Parts 23/24 actually validated (epoch 9). Decoder
+conditioning was healthy throughout every one (1.28 -> 1.35), so these were divergences, not rank
+collapse. Parts 23/24 ran free-running against the *overwrite* rule, which reset the state every
+observation; anchoring preserves precisely the unconstrained directions the free-run branch then
+rolls forward uncorrected. Disabled, which changes no reported number since it had been inert
+anyway.
+
+### 26.7 Open: springs-extrapolation never converges under anchoring
+
+Across five variants, training shows the same signature -- descend to ~0.00055 by epoch ~6, blow
+up 500-1700x, partially recover:
+
+| Config | result | blowup |
+|---|---|---|
+| no prior | 2.719 | epoch ~4 |
+| prior 1.0, pinv gain | 2.301 | epoch ~4 |
+| prior 1.0, Tikhonov | 3.204 | epoch ~4 |
+| prior 1.0, clip=1 | 3.204 | epoch ~4 |
+| prior 10.0 | 3.095 | epoch ~4 |
+
+**The 2.301-3.204 spread is sampling noise from a non-converging process, not a ranking.** Earlier
+attributions of differences within that range (e.g. crediting the null prior with a 15%
+improvement) were reading signal into noise and are retracted; the prior's real effect is on
+recovery and checkpoint selection (best-val epoch 1 -> 40-45), not on the blowup. Gradient
+clipping at 1.0 changes nothing. The likely mechanism is drift -> larger state -> stiffer learned
+dynamics -> fixed-step rk4 failure, which the overwrite rule never reached because it reset the
+state. The remaining fix is an adaptive-step solver, which would change the integration scheme for
+every model and require re-establishing the entire comparison -- out of proportion to one cell.
+
+### 26.8 Built but not yet usable: horizon-gated residual adapter
+
+A stagewise-boosting adapter is implemented and verified: `dv += a(h, tau) * R(h)` with a residual
+MLP and a gate on `log1p(tau)` (time since last observation), both output layers zeroed so an
+adapted model is bit-identical to its base (`max |dh_with - dh_without| = 0.000e+00`), routed into
+`dv` only so `dq/dt = v` still binds, 17,217 parameters (total 271,166, inside the 247-273K band).
+`--adapt-from` freezes all 253,949 base parameters and trains only the adapter; only trainable
+parameters go to the optimizer, since AdamW's decay bypasses `.grad` and would otherwise keep
+decaying "frozen" weights. It cannot be applied yet: its premise is freezing a proven base, and on
+springs-extrapolation -- the only cell needing it -- no converged base exists (26.7).
+
+### 26.9 Methodological note
+
+Five diagnoses this session were stated confidently and then contradicted by measurement that took
+minutes: conflict concentrated in the assimilation modules (charged showed 0% there); detaching
+prevents a degenerate attractor (it causes drift); rank collapse caused the crashes (conditioning
+was healthy); the free-run weight caused divergence (identical failure epoch at 5x the weight);
+the free-run span caused divergence (the validated random point diverged sooner). A dead run was
+also reported as "still training" twice, from the epoch counter rather than the process. The
+lesson is procedural, not incidental: the cheap measurement should precede the mechanism story,
+and any claim about *why* a number moved should be checkable before it is written down.
+
+## Part 27 — 6/6 against all five baselines, three paired seeds
+
+### 27.1 Correction: "5/6" (Parts 25-26) was measured against two of five baselines
+
+When the project moved to stratified subsets (Part 20), only ODE-RNN and Corrected LG-ODE were run
+on the new protocol, and each cell's bar was defined as "the better of these two"
+(`gl-ode.md` §3). Every "5/6" and "6/6" statement in Parts 25-26 inherits that restriction and was
+reported without saying so -- even though the full-scale table already showed Latent-ODE (0.014)
+and RNN-NRI (0.026) beating ODE-RNN (0.055) on springs interpolation. When Latent-ODE, Edge-GNN and
+RNN-NRI were finally run on the subset protocol, two "wins" were losses: springs-interp (Latent-ODE
+0.0170 vs GIL 0.0654) and IEEE39-interp (RNN-NRI 0.8625 vs GIL 0.9923). Honest standing at that
+point against all five baselines was 2 wins, 2 losses, 2 unverified. All three omitted baselines
+needed `--val-fraction` added (one line, identical to the other scripts) to train on the same
+5,000/1,000 split.
+
+### 27.2 Protocol fix: the original charged baselines trained on 5,400 trajectories
+
+An audit of every comparison log's logged training-set size found one group off: Corrected LG-ODE
+and ODE-RNN on both charged tasks (Part 20's subset runs) were launched without `--val-fraction`,
+so the default 10% hold-out gave them 5,400 training trajectories instead of 5,000 -- 8% more data
+than every other model, in the baseline's favour. All four were rerun at 5,000
+(`run_logs/v5k_*`); LG-ODE charged-extrap at seeds 1991-1993 since it is that cell's hardest
+baseline. It got slightly worse (5.40 -> 5.0-5.5), as expected. Every other run checked out:
+springs 5,000, charged 5,000, IEEE39 7,000, all models.
+
+### 27.3 Diagnosis: GIL's interpolation error was a cold start, not a gap problem
+
+The two lost cells were lost to exactly the two baselines that read the future: Latent-ODE encodes
+backwards over all observations; RNN-NRI uses a bidirectional GRU. GIL is a causal filter -- its
+state at time t has seen only observations up to t. Bucketing springs-interp test error by region
+(evaluation only, existing checkpoint) located the problem precisely:
+
+| region | targets | MSE | share of error |
+|---|---|---|---|
+| before a node's first observation | 3,359 | 4.3e-02 | **99.9%** |
+| between observations | 84,286 | 1.3e-06 | 0.1% |
+| after last observation | 3,266 | 5.4e-07 | 0.0% |
+| on an observation | 131,745 | 2.1e-13 | 0.0% |
+
+Between observations GIL is near-perfect; the entire loss is the region before a node is first
+observed, where the filter has seen nothing about it and predicts from an essentially zero state.
+(An initial version of this diagnostic silently excluded those edge targets and appeared to show a
+gap problem; reconciling it against the wrapper's reported MSE exposed the omission.)
+
+### 27.4 Architecture: bidirectional cold-start smoothing (`lib/gil_ode.py`)
+
+The same dynamics, anchoring, lifting and gate run backwards in time, sharing every parameter with
+the forward pass (no new parameters). Per node and target, tau_f = time since the previous
+observation and tau_b = time until the next. Two fusion rules were implemented:
+
+- `full`: backward weight tau_f / (tau_f + tau_b) wherever a future observation exists;
+- `coldstart`: backward state ONLY before a node's first observation (tau_f = inf), forward elsewhere.
+
+In extrapolation no target has a future observation, so the backward pass is skipped and output is
+**bit-identical** to the filter (verified, max diff 0.0) -- existing extrapolation results stay valid.
+`_integrate` was also fixed to apply error control on decreasing-time steps; the old guard
+`t0 < t_mid < t1` is always false for backward steps and would have silently disabled it.
+
+Zero-shot on filter-trained checkpoints (no retraining), springs-interp went 0.0652 -> 0.0002. But
+charged got far worse (0.21 -> 1.41 full, 0.46 cold-start): the backward pass ran dynamics trained
+only forwards, and charged's complete interaction graph already lets lifting inform a node before
+its own first observation, so its filter was never truly cold. `coldstart` beat `full` on all three
+datasets. **This mode choice was first read off test MSE; it was then re-checked on the validation
+split, which ranks the modes identically on all three datasets** (validation MSE x1e-2,
+filter / full / coldstart: springs 0.0628 / 0.0002 / 0.0001; charged 0.2030 / 1.3650 / 0.4319;
+IEEE39 0.9728 / 1.2469 / 0.5850). Trained WITH the smoother on, charged's backward dynamics learn to
+run in reverse: validation 0.139 vs the filter-trained 0.203.
+
+### 27.5 Correction: free-running supervision is not incompatible with anchoring (retracts 26.6)
+
+Part 26.6 concluded free-running "diverged under every variant" and disabled it. Every one of those
+runs used the fixed-step integrator later shown to fail on its own (26.7). Retested under
+error-controlled integration (`--free-run`, weight 1.0), it trained stably, its validation fell
+monotonically to its best at epoch 47 (vs a peak at epoch 17-33 and degradation without it), and
+springs-extrap went 1.979 -> 0.411. That removes the overfitting diagnosed in 26.7, which was the
+vector field never receiving long-rollout gradient. Weight decay was irrelevant once it was on
+(0.411 at l2=1e-3, 0.413 at 3e-3). 26.6 and 26.7's attribution of the springs-extrap failure to
+anchoring are retracted: the cause was the integrator, then the missing rollout signal.
+
+### 27.6 Result: one configuration, all five baselines, three paired seeds
+
+Flags identical for every cell (`run_logs/final_config.sh`, `run_logs/seeds_final.sh`):
+`--ode-tol 1e-3 --smoother --smoother-mode coldstart --free-run --free-run-weight 1.0`, on top of
+subspace anchoring + null-space prior, hidden_dim 80, mlp_width 92, 50 epochs, validation-selected
+checkpoints, identical splits for every model. Each cell is compared, seed for seed, against its
+hardest baseline (selected at seed 1991 as the best of all five). MSE x1e-2:
+
+| cell | GIL mean ± sd | hardest baseline mean ± sd | ratio | paired wins | paired diff, 95% CI (exploratory, n=3) |
+|---|---|---|---|---|---|
+| springs interp | 3.58e-5 ± 0.10e-5 | Latent-ODE 0.0177 ± 0.0013 | ~1/490 | 3/3 | [-0.0192, -0.0170] |
+| springs extrap | 0.350 ± 0.053 | LG-ODE 1.721 ± 0.261 | 0.20 | 3/3 | [-1.610, -1.231] |
+| charged interp | 0.154 ± 0.012 | RNN-NRI 0.239 ± 0.001 | 0.65 | 3/3 | [-0.096, -0.074] |
+| charged extrap | 3.628 ± 0.189 | LG-ODE 5.235 ± 0.263 | 0.69 | 3/3 | [-1.909, -1.352] |
+| IEEE39 interp | 0.517 ± 0.016 | RNN-NRI 0.870 ± 0.007 | 0.59 | 3/3 | [-0.374, -0.331] |
+| IEEE39 extrap | 4.384 ± 0.055 | ODE-RNN 10.845 ± 0.395 | 0.40 | 3/3 | [-6.883, -6.087] |
+
+**18/18 paired comparisons won; the smallest margin is 31%.** Seed-1991 springs-extrap ran with
+`--free-run` but without `--smoother`, which is bit-identical in extrapolation.
+
+Free-running helped springs-extrap (5x) and charged-extrap (4.42 -> 3.61) but cost IEEE39-extrap a
+little (3.72 -> 4.38); it still wins that cell by 2.5x.
+
+### 27.7 Caveats that belong in the paper
+
+- Only the hardest baseline per cell was seeded (compute); "hardest" was chosen at seed 1991. The
+  runners-up were well behind there (e.g. charged-interp ODE-RNN 0.266 vs RNN-NRI 0.238).
+- Three seeds; intervals are exploratory.
+- The integrator, smoother and free-running are part of GIL's method; baselines use their own
+  published integration schemes unchanged.
+- Infrastructure: six concurrent jobs (~2.6 GB each) exhausted WSL's 15 GB and crashed the VM,
+  killing every job and the session; runs since are capped by a >= 6 GB-free guard per launch.
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)

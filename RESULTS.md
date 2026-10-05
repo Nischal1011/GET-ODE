@@ -10,6 +10,25 @@ first "final corrected" 36-run matrix, which used validation-blind (best-on-test
 selection and a stale mean/std RNN-NRI encoder, both since fixed — is preserved in
 `RESULTS_ARCHIVE_PHASE1-3.md` and the git history of this file, not this page.
 
+## Current headline (CHANGES.md Part 27)
+
+GIL-ODE beats **all five baselines on all six cells** under one configuration, on three paired
+seeds (18/18 paired wins, smallest margin 31%). MSE x1e-2, mean ± sd over seeds 1991-1993:
+
+| cell | GIL-ODE | hardest baseline | ratio |
+|---|---|---|---|
+| Springs interp | 3.58e-5 ± 0.10e-5 | Latent-ODE 0.0177 ± 0.0013 | ~1/490 |
+| Springs extrap | 0.350 ± 0.053 | LG-ODE 1.721 ± 0.261 | 0.20 |
+| Charged interp | 0.154 ± 0.012 | RNN-NRI 0.239 ± 0.001 | 0.65 |
+| Charged extrap | 3.628 ± 0.189 | LG-ODE 5.235 ± 0.263 | 0.69 |
+| IEEE39 interp | 0.517 ± 0.016 | RNN-NRI 0.870 ± 0.007 | 0.59 |
+| IEEE39 extrap | 4.384 ± 0.055 | ODE-RNN 10.845 ± 0.395 | 0.40 |
+
+All models train on identical splits (springs/charged 5,000, IEEE39 7,000; the original charged
+LG-ODE/ODE-RNN subset runs used 5,400 and were rerun). Only each cell's hardest baseline was seeded.
+Tables further down that report "the better of ODE-RNN and LG-ODE" as the bar predate Part 27 and
+compare against two of five baselines only.
+
 ## Baseline provenance (read this before comparing to the paper)
 
 The original LG-ODE paper (Huang, Sun, Wang, NeurIPS 2020) never released code or hyperparameters

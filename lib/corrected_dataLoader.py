@@ -28,6 +28,8 @@ reports/DATA_CHARACTERISTICS.md and CHANGES.md for how each was discovered:
    (VAL_FRACTION of it) for "val", leaving the remainder as the actual training set. Test stays
    entirely separate (its own generated trajectories, already leakage-free from train/val).
 '''
+import os
+
 import numpy as np
 import torch
 from torch.utils.data import DataLoader as Loader
@@ -69,11 +71,23 @@ class CorrectedParseData(ParseData):
         self.batch_size = batch_size
         self.sample_percent = sample_percent
 
-        if data_type == "test":
-            loc = np.load(self.dataset_path + '/loc_test' + self.suffix + '.npy', allow_pickle=True)[:5000]
-            vel = np.load(self.dataset_path + '/vel_test' + self.suffix + '.npy', allow_pickle=True)[:5000]
-            edges = np.load(self.dataset_path + '/edges_test' + self.suffix + '.npy', allow_pickle=True)[:5000]
-            times = np.load(self.dataset_path + '/times_test' + self.suffix + '.npy', allow_pickle=True)[:5000]
+        # A dedicated val split drawn from the TEST pool (disjoint from test) is used when the
+        # dataset directory provides one. Validation has to pose the same task test poses:
+        # train-pool trajectories have only a single window, so as a validation set they can only
+        # ask for a short train-style forecast, which a strong-assimilation model solves almost
+        # immediately -- the metric then goes flat and stops selecting checkpoints (measured:
+        # best-val at epoch 1 of 50 for GIL-ODE charged-extrap, vs epoch 44 for LG-ODE on the same
+        # cell). See gl-ode.md section 6. Falls back to the old train-pool slice when the files
+        # aren't present, so older dataset directories still load.
+        val_path = self.dataset_path + '/loc_val' + self.suffix + '.npy'
+        use_dedicated_val = (data_type == "val" and os.path.exists(val_path))
+
+        if data_type == "test" or use_dedicated_val:
+            split = "val" if use_dedicated_val else "test"
+            loc = np.load(self.dataset_path + '/loc_' + split + self.suffix + '.npy', allow_pickle=True)[:5000]
+            vel = np.load(self.dataset_path + '/vel_' + split + self.suffix + '.npy', allow_pickle=True)[:5000]
+            edges = np.load(self.dataset_path + '/edges_' + split + self.suffix + '.npy', allow_pickle=True)[:5000]
+            times = np.load(self.dataset_path + '/times_' + split + self.suffix + '.npy', allow_pickle=True)[:5000]
             effective_type = "test"
         else:
             loc_all = np.load(self.dataset_path + '/loc_train' + self.suffix + '.npy', allow_pickle=True)[:20000]
