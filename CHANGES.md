@@ -1459,6 +1459,33 @@ little (3.72 -> 4.38); it still wins that cell by 2.5x.
 - Infrastructure: six concurrent jobs (~2.6 GB each) exhausted WSL's 15 GB and crashed the VM,
   killing every job and the session; runs since are capped by a >= 6 GB-free guard per launch.
 
+### 27.8 Complete main-results table: all baselines, three seeds
+
+27.6 seeded only each cell's hardest baseline. The remaining 48 baseline runs (seeds 1992/1993 for
+every baseline x cell not yet seeded; `run_logs/baselines_seeds.sh`) were added so every entry is a
+3-seed mean, with commands mirroring the seed-1991 runs exactly. Result: **90/90 paired wins** --
+GIL beats every baseline on every seed in every cell -- and the strongest baseline by 3-seed mean
+matches the seed-1991 choice in all six cells, closing that caveat from 27.7.
+
+| model | Springs interp | Springs extrap | Charged interp | Charged extrap | IEEE39 interp | IEEE39 extrap |
+|---|---|---|---|---|---|---|
+| **GIL-ODE** | **3.58e-5 ± 0.10e-5** | **0.350 ± 0.053** | **0.154 ± 0.012** | **3.628 ± 0.189** | **0.517 ± 0.016** | **4.384 ± 0.055** |
+| LG-ODE | 0.338 ± 0.052 | 1.721 ± 0.261 | 0.971 ± 0.054 | 5.235 ± 0.263 | 8.584 ± 0.680 | 13.633 ± 0.183 |
+| ODE-RNN | 0.066 ± 0.003 | 5.141 ± 0.253 | 0.263 ± 0.002 | 6.757 ± 0.066 | 1.092 ± 0.010 | 10.845 ± 0.395 |
+| Latent-ODE | 0.018 ± 0.001 | 9.722 ± 0.330 | 0.616 ± 0.010 | 6.558 ± 0.137 | 7.711 ± 0.030 | 15.048 ± 0.124 |
+| Edge-GNN | 0.370 ± 0.051 | 2.641 ± 0.246 | 1.217 ± 0.074 | 6.299 ± 0.806 | 9.000 ± 0.784 | 14.961 ± 0.947 |
+| RNN-NRI | 0.040 ± 0.000 | 6.433 ± 0.852 | 0.239 ± 0.001 | 12.640 ± 1.642 | 0.870 ± 0.006 | 110.51 ± 0.03 † |
+
+† RNN-NRI diverged in its first epoch on IEEE39 extrapolation on all three seeds (training MSE
+1.4e5 at epoch 1) and converged to a constant predictor (training MSE ~1.11, the variance of the
+normalized data, for the remaining 49 epochs). Its discrete recurrent forecast rollout has no bound
+on the state, and over IEEE39's horizon it explodes. It trained under the same protocol and the
+same gradient clipping as every other model, and is reported as-is rather than re-tuned, since
+per-model tuning is not applied to any model. Its IEEE39 interpolation trains normally (0.870).
+
+Infrastructure note: the RAM guard was raised from 6 to 8 GB free per launch after three concurrent
+Edge-GNN IEEE39 jobs (~3.7 GB each) left under 3 GB free; the relaunch lost only a few minutes.
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)
