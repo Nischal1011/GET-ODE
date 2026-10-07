@@ -25,3 +25,4 @@ data/spring_subset/*
 data/charged_subset/*
 !data/spring_subset/subset_manifest.json
 !data/charged_subset/subset_manifest.json
+experiments_csgode/

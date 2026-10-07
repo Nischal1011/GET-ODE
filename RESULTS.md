@@ -12,7 +12,7 @@ selection and a stale mean/std RNN-NRI encoder, both since fixed — is preserve
 
 ## Main results (CHANGES.md Part 27)
 
-GIL-ODE beats **every one of the five baselines on all six cells, on every seed: 90/90 paired
+GIL-ODE beats **every one of the six baselines on all six cells, on every seed: 108/108 paired
 comparisons won**, under one configuration with identical flags for every cell. MSE x1e-2, mean ±
 sd over seeds 1991-1993; validation-selected checkpoints; identical splits for every model
 (springs/charged 5,000 training trajectories, IEEE39 7,000).
@@ -25,6 +25,7 @@ sd over seeds 1991-1993; validation-selected checkpoints; identical splits for e
 | Latent-ODE | 0.018 ± 0.001 | 9.722 ± 0.330 | 0.616 ± 0.010 | 6.558 ± 0.137 | 7.711 ± 0.030 | 15.048 ± 0.124 |
 | Edge-GNN | 0.370 ± 0.051 | 2.641 ± 0.246 | 1.217 ± 0.074 | 6.299 ± 0.806 | 9.000 ± 0.784 | 14.961 ± 0.947 |
 | RNN-NRI | 0.040 ± 0.000 | 6.433 ± 0.852 | 0.239 ± 0.001 | 12.640 ± 1.642 | 0.870 ± 0.006 | 110.51 ± 0.03 † |
+| CSG-ODE ‡ | 0.048 ± 0.005 | 3.627 ± 0.305 | 1.116 ± 0.080 | 7.421 ± 0.655 | 11.402 ± 0.459 | 17.816 ± 0.064 |
 
 † RNN-NRI diverged in its first epoch on IEEE39 extrapolation on all three seeds (training MSE
 1.4e5 at epoch 1) and converged to a constant predictor (training MSE ~1.11, the variance of the
@@ -32,6 +33,20 @@ normalized data, for the remaining 49 epochs). Its discrete recurrent forecast r
 on the state, and over IEEE39's horizon it explodes. It trained under the same protocol and the
 same gradient clipping as every other model, and is reported as-is rather than re-tuned, since
 per-model tuning is not applied to any model. Its IEEE39 interpolation trains normally (0.870).
+
+‡ CSG-ODE (Wang, Wang & Liang, ICML 2025) has no released code (checked GitHub, OpenReview and the
+ICML page). It is reimplemented in `lib/csg_ode.py` from the paper's equations with its Table 8
+hyperparameters (357,678 parameters, more than GIL-ODE's ~254-271K); the decoder's numerical scheme
+follows the authors' cited ControlSynth Neural ODE reference code. It is trained by
+`run_models_csgode.py`, which is the Corrected LG-ODE runner with only the model swapped. Reported
+with the paper's own Euler solver; RK4 (LG-ODE's solver here) is within ±5% in every cell.
+
+**Faithfulness check** (full-scale springs, 60% observation, the paper's own setting):
+interpolation 0.018 vs the paper's 0.144 (ours 8x better); extrapolation 2.212 vs 1.297 (ours 1.7x
+worse; our LG-ODE also sits 1.22x above its published extrapolation number on this cell). **Robustness
+to that gap:** dividing every CSG-ODE extrapolation result by the full 1.705 factor still leaves GIL-ODE
+ahead in all three extrapolation cells (springs 0.350 vs 2.08, charged 3.628 vs 4.35, IEEE39 4.384 vs
+10.29); charged-extrapolation is the narrowest under that generous assumption.
 
 Ratio to the strongest baseline in each cell (by 3-seed mean): springs-interp ~1/490 (Latent-ODE),
 springs-extrap 0.20 (LG-ODE), charged-interp 0.65 (RNN-NRI), charged-extrap 0.69 (LG-ODE),

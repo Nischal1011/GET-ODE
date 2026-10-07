@@ -1486,6 +1486,40 @@ per-model tuning is not applied to any model. Its IEEE39 interpolation trains no
 Infrastructure note: the RAM guard was raised from 6 to 8 GB free per launch after three concurrent
 Edge-GNN IEEE39 jobs (~3.7 GB each) left under 3 GB free; the relaunch lost only a few minutes.
 
+### 27.9 CSG-ODE (ICML 2025) added as the final baseline: 108/108 paired wins
+
+CSG-ODE has no released code; reimplemented in `lib/csg_ode.py` (equations 1-17 and Appendices A-B,
+Table 8 hyperparameters, decoder scheme from the ControlSynth Neural ODE reference code; every
+choice the paper leaves open is listed in the file header). Verified before training: the
+finite-difference Frechet derivative behind the edge-importance weights matches the exact derivative
+to 6.8e-9 (computed in float64 -- with beta ~ 4e-5 float32 cancels), and the sampling density matches
+Appendix A. `run_models_csgode.py` is the Corrected LG-ODE runner with only the model swapped.
+
+Implementation fix, results-neutral: the first version held every encoder timestep's and every Euler
+step's intermediates for backward -- ~30 GB of GPU memory on IEEE39, which saturated the card that also
+drives the display and made the desktop lag. Per-step gradient checkpointing (plus computing the
+node-specific weights once per forward) gives bit-identical loss and gradients at 1.7 GB, 3x faster.
+
+| CSG-ODE ‡ | 0.048 ± 0.005 | 3.627 ± 0.305 | 1.116 ± 0.080 | 7.421 ± 0.655 | 11.402 ± 0.459 | 17.816 ± 0.064 |
+
+‡ CSG-ODE (Wang, Wang & Liang, ICML 2025) has no released code (checked GitHub, OpenReview and the
+ICML page). It is reimplemented in `lib/csg_ode.py` from the paper's equations with its Table 8
+hyperparameters (357,678 parameters, more than GIL-ODE's ~254-271K); the decoder's numerical scheme
+follows the authors' cited ControlSynth Neural ODE reference code. It is trained by
+`run_models_csgode.py`, which is the Corrected LG-ODE runner with only the model swapped. Reported
+with the paper's own Euler solver; RK4 (LG-ODE's solver here) is within ±5% in every cell.
+
+**Faithfulness check** (full-scale springs, 60% observation, the paper's own setting):
+interpolation 0.018 vs the paper's 0.144 (ours 8x better); extrapolation 2.212 vs 1.297 (ours 1.7x
+worse; our LG-ODE also sits 1.22x above its published extrapolation number on this cell). **Robustness
+to that gap:** dividing every CSG-ODE extrapolation result by the full 1.705 factor still leaves GIL-ODE
+ahead in all three extrapolation cells (springs 0.350 vs 2.08, charged 3.628 vs 4.35, IEEE39 4.384 vs
+10.29); charged-extrapolation is the narrowest under that generous assumption.
+
+Solver comparison (3-seed test means, Euler vs RK4): springs 0.048/0.048, 3.63/3.54; charged
+1.12/1.12, 7.42/7.82; IEEE39 11.40/11.62, 17.82/17.55. Training curves show CSG-ODE still improving at
+epoch 50 on four of six cells (best-val epoch 49-50); all models share the 50-epoch protocol.
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)

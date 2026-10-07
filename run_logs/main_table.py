@@ -9,6 +9,7 @@ def mse(f):
     v, ll = float(m[-1][0]), float(m[-1][1])
     return (v if v > 0 else -ll * 2e-4) * 100   # MSE prints to 6 dp; recover tiny values from likelihood
 def bname(m, d, t, s):
+    if m == 'csgode': return f'csgode_{d}_{t}_s{s}'
     if m in ('corrected', 'odernn') and d == 'charged': return f'v5k_{m}_charged_{t}_s{s}'
     if s == 1991: return f'ieee39_subset_{m}_{t}' if d == 'ieee39' else f'subset_{m}_{d}_{t}'
     if m == 'corrected' and d == 'spring' and t == 'extrap': return f'lgode_s{s}_spring_extrap'
@@ -19,7 +20,7 @@ def gname(d, t, s):
     return f'fc_s{s}_{d}_{t}'
 cells = [(d, t) for d in ('spring', 'charged', 'ieee39') for t in ('interp', 'extrap')]
 models = [('GIL-ODE', None), ('LG-ODE', 'corrected'), ('ODE-RNN', 'odernn'), ('Latent-ODE', 'latentode'),
-          ('Edge-GNN', 'edgegnn'), ('RNN-NRI', 'rnnnri')]
+          ('Edge-GNN', 'edgegnn'), ('RNN-NRI', 'rnnnri'), ('CSG-ODE', 'csgode')]
 vals = {}
 for lab, m in models:
     for d, t in cells:
