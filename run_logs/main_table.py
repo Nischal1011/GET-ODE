@@ -1,6 +1,13 @@
 '''Main-results table: GIL-ODE and all five baselines, six cells, three seeds (1991-1993).
 Every run on identical splits; validation-selected checkpoints. MSE x1e-2, mean +- sd.'''
-import re, os, numpy as np
+import re, os, json, numpy as np
+# GIL-ODE extrapolation logs (before CHANGES.md Part 28) print the training wrapper's prefix-averaged
+# MSE on their FINAL line, not the standard full-horizon metric the baselines report. Those cells
+# are read from the standard-metric rescore of the same checkpoints (eval_gilode.py) instead.
+RESCORE = {}
+if os.path.exists('run_logs/eval/rescore_extrap.jsonl'):
+    for l in open('run_logs/eval/rescore_extrap.jsonl'):
+        r = json.loads(l); RESCORE[r['data'], r['seed']] = r['mse_full'] * 100
 def mse(f):
     p = f'run_logs/{f}.log'
     if not os.path.exists(p): return None
@@ -24,7 +31,10 @@ models = [('GIL-ODE', None), ('LG-ODE', 'corrected'), ('ODE-RNN', 'odernn'), ('L
 vals = {}
 for lab, m in models:
     for d, t in cells:
-        vals[lab, d, t] = [mse(gname(d, t, s) if m is None else bname(m, d, t, s)) for s in (1991, 1992, 1993)]
+        if m is None and t == 'extrap':
+            vals[lab, d, t] = [RESCORE.get((d, s)) for s in (1991, 1992, 1993)]
+        else:
+            vals[lab, d, t] = [mse(gname(d, t, s) if m is None else bname(m, d, t, s)) for s in (1991, 1992, 1993)]
 def fmt(v):
     v = [x for x in v if x is not None]
     if not v: return '-'

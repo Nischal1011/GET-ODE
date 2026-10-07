@@ -39,6 +39,11 @@ parser.add_argument('--clip', type=float, default=10)
 parser.add_argument('--cutting_edge', type=bool, default=True)
 parser.add_argument('--extrap_num', type=int, default=40)
 parser.add_argument('--alias', type=str, default="run")
+parser.add_argument('--horizon-loss', type=str, default='prefix', choices=['prefix', 'full'],
+                    help='extrap training loss: mean over 20..100%% horizon prefixes, or the full horizon only')
+parser.add_argument('--ablate', type=str, default='',
+                    help='comma-separated ablations (lib/gil_ode.py): no_lift, overwrite, no_gate, complete, '
+                         'no_residual, no_guard, no_antisym, no_null_prior')
 parser.add_argument('--dataset-dir', type=str, default=None)
 parser.add_argument('--ode-tol', type=float, default=None, help='Enable error-controlled rk4 (step doubling): keep the one-step result where it agrees with two half steps to within this tolerance, else recursively bisect. One global value for every dataset.')
 parser.add_argument('--ode-substeps', type=int, default=1, help='Fixed rk4 substeps per grid segment; >1 shrinks the step size proportionally')
@@ -157,7 +162,9 @@ if __name__ == '__main__':
                            mlp_width=args.mlp_width, ode_substeps=args.ode_substeps, ode_tol=args.ode_tol,
                            use_forecast_adapter=(args.forecast_adapter_from is not None),
                            free_run=args.free_run, free_run_weight=args.free_run_weight,
-                           use_smoother=args.smoother, smoother_mode=args.smoother_mode).to(device)
+                           use_smoother=args.smoother, smoother_mode=args.smoother_mode,
+                           ablate=tuple(a for a in args.ablate.split(',') if a),
+                           horizon_loss=args.horizon_loss).to(device)
 
     if args.load is not None:
         ckpt_path = os.path.join(args.save, args.load)

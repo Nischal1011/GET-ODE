@@ -73,7 +73,7 @@ class GILODEBaseline(VAE_Baseline):
     def __init__(self, input_dim, hidden_dim, num_atoms, dataset, obsrv_std, device, mode="interp",
                  mlp_width=None, ode_substeps=1, ode_tol=None, use_forecast_adapter=False,
                  free_run=False, free_run_weight=FREE_RUN_WEIGHT, use_smoother=False,
-                 smoother_mode='full'):
+                 smoother_mode='full', ablate=(), horizon_loss='prefix'):
         super(GILODEBaseline, self).__init__(
             input_dim=input_dim, latent_dim=hidden_dim, z0_prior=None, device=device, obsrv_std=obsrv_std)
         self.num_atoms = num_atoms
@@ -84,10 +84,13 @@ class GILODEBaseline(VAE_Baseline):
         # been failing on its own (CHANGES.md Part 26), so those rejections are confounded.
         self.free_run = free_run
         self.free_run_weight = free_run_weight
+        self.horizon_loss = horizon_loss   # 'prefix' (multi-horizon average) or 'full'
         self.core = GILODEModel(input_dim, hidden_dim, num_atoms, device, mlp_width=mlp_width,
                                 ode_substeps=ode_substeps, ode_tol=ode_tol,
                                 use_forecast_adapter=use_forecast_adapter,
-                                use_smoother=use_smoother, smoother_mode=smoother_mode)
+                                use_smoother=use_smoother, smoother_mode=smoother_mode,
+                                ablate=ablate)
+        self.null_prior_weight = 0.0 if 'no_null_prior' in ablate else NULL_PRIOR_WEIGHT
 
     def compute_all_losses(self, batch_dict_encoder, batch_dict_decoder, batch_dict_graph,
                             n_traj_samples=1, kl_coef=1.):
@@ -172,14 +175,17 @@ class GILODEBaseline(VAE_Baseline):
         truth = batch_dict_decoder["data"]       # [M, T_Q, D]
         target_mask = batch_dict_decoder["mask"]  # [M, T_Q, D]
 
-        if self.mode == "extrap" and T_Q > 1:
+        if self.mode == "extrap" and T_Q > 1 and self.horizon_loss == 'prefix':
             cutoffs = sorted(set(max(1, round(T_Q * f)) for f in HORIZON_FRACTIONS))
             liks = [_pooled_masked_gaussian_ll(pred_flat[:, :, :H], truth[:, :H], target_mask[:, :H], self.obsrv_std)
                     for H in cutoffs]
-            mses = [_pooled_masked_mse(pred_flat[:, :, :H], truth[:, :H], target_mask[:, :H])
-                    for H in cutoffs]
             rec_likelihood = torch.stack(liks).mean().unsqueeze(0)
-            mse_val = torch.stack(mses).mean()
+            # The prefix average is a TRAINING objective only. The reported MSE (used for
+            # checkpoint selection and for every number in the results) must be the same
+            # full-horizon metric every baseline reports; the prefix average weights early,
+            # easy forecast steps more and measured 2.5x lower on springs-extrap (CHANGES.md
+            # Part 28). Before this fix the FINAL line in extrap logs was the prefix average.
+            mse_val = self.get_mse(truth, pred_flat, mask=target_mask)
         else:
             rec_likelihood = self.get_gaussian_likelihood(truth, pred_flat, None, mask=target_mask)
             mse_val = self.get_mse(truth, pred_flat, mask=target_mask)
@@ -206,7 +212,7 @@ class GILODEBaseline(VAE_Baseline):
         # identically in both modes and all three datasets -- it is a property of the state space,
         # not of a task or a dataset.
         if self.training:
-            loss = loss + NULL_PRIOR_WEIGHT * null_penalty
+            loss = loss + self.null_prior_weight * null_penalty
 
         return {
             "loss": loss,

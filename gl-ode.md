@@ -5,19 +5,23 @@ model is, every change tried on it, which changes worked, which didn't, and wher
 stands against the baselines. Companion to `CHANGES.md` (full project history including the
 reproduction and dataset work) and `RESULTS.md` (current results tables).
 
-**Bottom line up front:** GIL-ODE wins **all 6 cells against all five baselines** (Corrected
-LG-ODE, ODE-RNN, Latent-ODE, Edge-GNN, RNN-NRI), under **one configuration with identical flags for
-every cell**, confirmed on **three paired seeds — 18 of 18 paired comparisons won, smallest margin
-31%** (CHANGES.md Part 27). MSE x1e-2, GIL vs the hardest baseline in each cell:
+**Bottom line up front (corrected 2026-10-07, CHANGES.md Part 28):** on the standard full-horizon
+metric GIL-ODE wins **5 of 6 cells** against all six baselines (103/108 paired comparisons). It
+**loses charged-extrapolation** to LG-ODE. The earlier "6/6, 18 of 18" headline scored GIL-ODE's
+extrapolation with the multi-horizon training metric, which is 1.6-2.5x lower than the metric the
+baselines report. MSE x1e-2, GIL vs the hardest baseline in each cell:
 
 | cell | GIL (3-seed mean) | hardest baseline (3-seed mean) | ratio |
 |---|---|---|---|
 | Springs interp | 3.58e-5 | Latent-ODE 0.0177 | ~1/490 |
-| Springs extrap | 0.350 | LG-ODE 1.721 | 0.20 |
+| Springs extrap | 0.873 | LG-ODE 1.721 | 0.51 |
 | Charged interp | 0.154 | RNN-NRI 0.239 | 0.65 |
-| Charged extrap | 3.628 | LG-ODE 5.235 | 0.69 |
+| Charged extrap | 6.233 | LG-ODE 5.235 | **1.19 (loss)** |
 | IEEE39 interp | 0.517 | RNN-NRI 0.870 | 0.59 |
-| IEEE39 extrap | 4.384 | ODE-RNN 10.845 | 0.40 |
+| IEEE39 extrap | 7.036 | ODE-RNN 10.845 | 0.65 |
+
+Every extrapolation number for GIL-ODE in older parts of this document (and CHANGES.md Parts 23-27)
+uses the prefix metric and is not comparable to the baselines.
 
 **Read this before anything below.** Every "5/6" in this document and in CHANGES.md Parts 25-26 was
 measured against only ODE-RNN and Corrected LG-ODE — the two baselines run on the subset protocol at

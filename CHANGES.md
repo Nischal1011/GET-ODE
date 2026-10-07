@@ -1520,6 +1520,66 @@ Solver comparison (3-seed test means, Euler vs RK4): springs 0.048/0.048, 3.63/3
 1.12/1.12, 7.42/7.82; IEEE39 11.40/11.62, 17.82/17.55. Training curves show CSG-ODE still improving at
 epoch 50 on four of six cells (best-val epoch 49-50); all models share the 50-epoch protocol.
 
+## Part 28 — Metric correction: GIL-ODE extrapolation was scored on an easier metric (retraction)
+
+### 28.1 The bug
+
+Every GIL-ODE extrapolation result reported up to Part 27 was the **multi-horizon training
+metric**, not the metric the baselines report. In extrap mode, `lib/baseline_gil_ode.py`'s
+`compute_all_losses` returned `mse = mean over the 20/40/60/80/100% horizon prefixes` (Part 23),
+batch-pooled. Nothing gated that on `self.training`, so it also produced the validation MSE used for
+checkpoint selection and the `FINAL [Test seq]` line. Every baseline reports
+`VAE_Baseline.get_mse` over the full horizon. Forecast error grows with horizon, and the prefix
+average counts early steps up to five times, so the GIL-ODE extrapolation numbers were
+systematically low. Interpolation was unaffected: that path always used `get_mse`.
+
+Found while planning the paper's experiments, by reading the wrapper. It was then measured
+directly with `eval_gilode.py` (new, evaluation only), which rebuilds the exact split from the
+checkpoint's args and computes both metrics on the same predictions. Its prefix metric reproduces
+the logged FINAL numbers to every printed digit.
+
+| cell | prefix metric (as reported) | standard full-horizon | ratio |
+|---|---|---|---|
+| springs extrap (3 seeds) | 0.350 | **0.873 ± 0.143** | 2.5x |
+| charged extrap | 3.628 | **6.233 ± 0.255** | 1.7x |
+| IEEE39 extrap | 4.384 | **7.036 ± 0.117** | 1.6x |
+
+### 28.2 Consequence for the main table
+
+On the standard metric, GIL-ODE still wins springs-extrap (0.873 vs LG-ODE 1.721) and IEEE39-extrap
+(7.04 vs ODE-RNN 10.85) on every seed against every baseline. **It loses charged-extrap**:
+6.233 vs LG-ODE 5.235. Paired, it wins 13/18 in that cell: it beats Edge-GNN on one of three seeds
+and LG-ODE on none. The Part 27 claims "108/108" and "6/6" are withdrawn; the correct count is
+**5/6 cells, 103/108 paired comparisons**. The CSG-ODE robustness paragraph (27.9) also used the
+prefix numbers. On the standard metric, the 1.705-rescaled CSG-ODE values (springs 2.08, charged
+4.35, IEEE39 10.29) beat GIL-ODE on charged-extrap, and GIL-ODE still wins springs and IEEE39.
+
+### 28.3 Fixes
+
+- `compute_all_losses` now always reports the standard `get_mse`. The prefix average remains a
+  training loss only, so checkpoint selection for new runs uses the baselines' metric.
+- `run_logs/main_table.py` reads GIL-ODE extrapolation cells from the standard-metric rescore of the
+  same validation-selected checkpoints (`run_logs/eval/rescore_extrap.jsonl`), not from the logs.
+  Those checkpoints were selected on prefix-averaged validation MSE. That is still a
+  validation-only criterion, but not the one new runs use.
+- Baseline-side check: no other model has a prefix or horizon metric (`grep`). `eval_baseline.py`
+  re-evaluates any baseline checkpoint through its own run script and reproduces LG-ODE's logged
+  test MSE to 0.35%; LG-ODE samples z0, so the evaluation is not bit-exact.
+
+### 28.4 What is being run (`run_logs/icml_queue.sh`)
+
+- **T6 (full-horizon training loss)**, `--horizon-loss full`, three extrap cells x 3 seeds. This is
+  the planned ablation of the multi-horizon loss. With the metric fixed, it is also the direct test
+  of whether that loss trades full-horizon accuracy for early-horizon accuracy. Whichever
+  loss is adopted will be chosen on validation MSE and applied to all three cells.
+- **Control:** the current config retrained on charged-extrap with the corrected selection metric
+  (3 seeds).
+- **A1 (no lifting)** on springs-interp x 3 seeds, the first architecture ablation (`--ablate
+  no_lift`; all ablations are listed in `lib/gil_ode.py`).
+- **Evaluation-only analyses** on all 18 final checkpoints: causal filter (smoother off),
+  lifted-correction magnitude, test-time lifting knockout, agent dropout (k masked agents, error on
+  the masked ones), complete/rewired graph, IEEE39 conductances, and figure dumps.
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)

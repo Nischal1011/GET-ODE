@@ -245,6 +245,9 @@ class GILODEFunc(nn.Module):
         # inactive, which is also what makes the calibration pass itself unguarded.
         self.register_buffer('guard_R', torch.tensor(-1.0))
 
+        # Ablation switches (paper Table 2). Empty in every reported model.
+        self.ablate = set()
+
         self.S = None
         self.c = None
         self._tau_base = None
@@ -292,6 +295,8 @@ class GILODEFunc(nn.Module):
         m_sum = (S_ * msg).sum(dim=2)  # [B, N, H]
         m_mean = m_sum / deg.clamp(min=1.0)
         m_anti = (S_ * f_anti).sum(dim=2)  # [B, N, H] -- additive, as a net force should be
+        if 'no_antisym' in self.ablate:
+            m_anti = torch.zeros_like(m_anti)
         log_deg = torch.log1p(deg)  # [B, N, 1]
         m_tilde = self.psi(torch.cat([m_sum, m_mean, m_anti, log_deg], dim=-1))  # [B, N, H]
 
@@ -306,14 +311,14 @@ class GILODEFunc(nn.Module):
         # so this is exactly a no-op until trained -- an adapted model starts identical to its
         # base checkpoint. log1p(tau) rather than raw tau so the gate sees the same input scale
         # across datasets whose time units differ, and is not saturated by a long forecast.
-        if self._tau_base is not None:
+        if self._tau_base is not None and 'no_residual' not in self.ablate:
             tau = (self._tau_base + (t - self._t0)).unsqueeze(-1)  # [B, N, 1]
             a = torch.sigmoid(self.residual_gate(torch.cat([h, torch.log1p(tau.clamp(min=0))], dim=-1)))
             dv = dv + a * self.residual(h)
 
         # Stability guard. Exactly zero wherever ||n|| <= R, so this is inert in the normal
         # operating regime and only engages on abnormal drift. See __init__.
-        if self._P_row is not None and float(self.guard_R) > 0.0:
+        if self._P_row is not None and float(self.guard_R) > 0.0 and 'no_guard' not in self.ablate:
             n = h - h @ self._P_row                             # [B, N, H] null-space component
             n_norm = n.norm(dim=-1, keepdim=True)               # [B, N, 1]
             excess = torch.relu(n_norm - self.guard_R)          # 0 below the radius
@@ -387,8 +392,16 @@ class GILODEModel(nn.Module):
 
     def __init__(self, input_dim, hidden_dim, num_atoms, device, mlp_width=None, ode_substeps=1, ode_tol=None, ode_max_depth=6,
                  use_forecast_adapter=False, forecast_adapter_rank=4, use_smoother=False,
-                 smoother_mode='full'):
+                 smoother_mode='full', ablate=()):
         super(GILODEModel, self).__init__()
+        # Ablations (paper Table 2), all off in the reported model:
+        #   no_lift      unobserved agents get no correction (delta_U = 0): per-agent update only
+        #   overwrite    replace subspace anchoring by h_obs <- E(y) (the pre-anchoring rule)
+        #   no_gate      beta = 1 for every unobserved agent
+        #   complete     lift and propagate on S = 1 - I instead of the physical graph
+        #   no_residual / no_guard / no_antisym   drop that term from the vector field
+        #   no_null_prior is handled in the training wrapper
+        self.ablate = set(ablate)
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.num_atoms = num_atoms
@@ -428,6 +441,29 @@ class GILODEModel(nn.Module):
         self.lifting = GraphLifting(hidden_dim)
         self.gate = GateNet()
         utils.init_network_weights(self.decoder)
+        self.ode_func.ablate = self.ablate
+        if 'overwrite' in self.ablate:
+            self.encoder_proj = nn.Linear(input_dim, hidden_dim)
+            utils.init_network_weights(self.encoder_proj)
+
+    def _innovation(self, y, h, mask_f, K):
+        '''Latent correction for observed agents (zero elsewhere): the anchored K e, or, under the
+        'overwrite' ablation, E(y) - h, which resets the whole state to an encoding of y.'''
+        if 'overwrite' in self.ablate:
+            return mask_f.unsqueeze(-1) * (self.encoder_proj(y) - h)
+        return mask_f.unsqueeze(-1) * ((y - self.decoder(h)) @ K.transpose(0, 1))
+
+    def _event_update(self, h, tso, S, c, r, mask_f):
+        N = h.shape[1]
+        delta = self.lifting(h, S, c, r, mask_f)
+        mask_col = mask_f.unsqueeze(-1)
+        if 'no_lift' in self.ablate:
+            return h + mask_col * delta
+        obs_density = mask_f.mean(dim=1, keepdim=True).expand(-1, N)
+        beta = self.gate(tso, obs_density, delta.norm(dim=-1))
+        if 'no_gate' in self.ablate:
+            beta = torch.ones_like(beta)
+        return h + mask_col * delta + (1 - mask_col) * beta * delta
 
     def _integrate(self, h, t0, t1, depth=0):
         '''
@@ -562,6 +598,8 @@ class GILODEModel(nn.Module):
         costs assimilation quality (CHANGES.md Part 25).
         '''
         B, N, T, D = dense.shape
+        if 'complete' in self.ablate:
+            S = (1 - torch.eye(N, device=S.device)).expand(B, -1, -1)
         self.ode_func.set_graph(S, c)
         K = self.anchor_gain()  # [H, D] -- W is fixed within a forward pass, so compute it once
         P_row = K @ self.decoder.weight                            # [H, H] row-space projector
@@ -651,8 +689,7 @@ class GILODEModel(nn.Module):
                 # that explains it. Was `encoder_proj(y_i) - h`, which drove h to E_theta(y_i)
                 # outright and so overwrote all hidden_dim dimensions from input_dim observed
                 # features at every event. See anchor_gain.
-                e_i = y_i - self.decoder(h)                          # [B, N, D]
-                r = mask_f.unsqueeze(-1) * (e_i @ K.transpose(0, 1))  # [B, N, H]
+                r = self._innovation(y_i, h, mask_f, K)               # [B, N, H]
                 with torch.no_grad():
                     # Anchor-correction magnitude. The gain K = W^T (W W^T + ridge)^-1 scales like
                     # 1/sigma_min(W), which the decoder's CONDITION number cannot detect -- cond is
@@ -661,14 +698,10 @@ class GILODEModel(nn.Module):
                     _c = r.norm(dim=-1).max().item()
                     if _c > self._diag_corr_max:
                         self._diag_corr_max = _c
-                delta = self.lifting(h, S, c, r, mask_f)
-                obs_density = mask_f.mean(dim=1, keepdim=True).expand(-1, N)
-                beta = self.gate(time_since_obs, obs_density, delta.norm(dim=-1))
                 # Observed nodes get their exact correction unconditionally (delta_i == r_i,
                 # hard-anchored in GraphLifting); the gate only weighs *inferred* corrections
                 # for unobserved nodes -- see module docstring, point 1.
-                mask_col = mask_f.unsqueeze(-1)
-                h = h + mask_col * delta + (1 - mask_col) * beta * delta
+                h = self._event_update(h, time_since_obs, S, c, r, mask_f)
                 time_since_obs = torch.where(mask_i, torch.zeros_like(time_since_obs), time_since_obs)
 
             # Forecast transition. GIL-ODE's latent state is trained to support repeated
@@ -782,13 +815,8 @@ class GILODEModel(nn.Module):
                     mask_i = obs_mask[:, :, i]
                     if mask_i.any():
                         mask_f = mask_i.float()
-                        e_i = dense[:, :, i, :] - self.decoder(h_b)
-                        r = mask_f.unsqueeze(-1) * (e_i @ K.transpose(0, 1))
-                        delta = self.lifting(h_b, S, c, r, mask_f)
-                        obs_density = mask_f.mean(dim=1, keepdim=True).expand(-1, N)
-                        beta = self.gate(tso_b, obs_density, delta.norm(dim=-1))
-                        mask_col = mask_f.unsqueeze(-1)
-                        h_b = h_b + mask_col * delta + (1 - mask_col) * beta * delta
+                        r = self._innovation(dense[:, :, i, :], h_b, mask_f, K)
+                        h_b = self._event_update(h_b, tso_b, S, c, r, mask_f)
                         tso_b = torch.where(mask_i, torch.zeros_like(tso_b), tso_b)
                     outputs_b[:, :, i] = h_b
                     nxt_t = cur_t
