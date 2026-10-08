@@ -1580,6 +1580,55 @@ prefix numbers. On the standard metric, the 1.705-rescaled CSG-ODE values (sprin
   lifted-correction magnitude, test-time lifting knockout, agent dropout (k masked agents, error on
   the masked ones), complete/rewired graph, IEEE39 conductances, and figure dumps.
 
+
+### 28.5 Results of the first ICML queue (2026-10-08)
+
+**Charged-extrap is still a loss** (MSE x1e-2, standard metric, seeds 1991/1992/1993):
+
+| variant | per seed | mean | vs LG-ODE 5.235 |
+|---|---|---|---|
+| original (prefix loss, prefix selection) | 6.378 / 6.383 / 5.939 | 6.233 | loss |
+| prefix loss, standard selection | 6.350 / 6.358 / 5.939 | 6.216 | loss |
+| T6 full-horizon loss | 6.503 / 5.682 / 6.018 | 6.068 | loss |
+
+T6 elsewhere: springs-extrap 3.306 (seed-1991 run degraded; val 0.0336) / 0.779 / 0.715.
+IEEE39-extrap 6.825 for seed 1991; the other two seeds are still running. Neither the
+selection metric nor the training loss closes the charged-extrap gap (16% at best).
+
+**Interpolation holds on held-out targets.** In interpolation the decoder targets include the
+conditioning observations: 59% of springs targets are inputs, and GIL-ODE reproduces those
+exactly (MSE ~2e-13). Scoring only targets that were **not** inputs, every model, 3 seeds
+(x1e-2):
+
+| cell | GIL-ODE | best baseline | GIL-ODE causal (no smoother) |
+|---|---|---|---|
+| springs | 0.00009 | Latent-ODE 0.0195 | 0.157 (loses to Latent-ODE and RNN-NRI) |
+| charged | 0.377 | RNN-NRI 0.585 | 0.456 |
+| IEEE39 | 1.293 | RNN-NRI 2.175 | 2.744 (loses to RNN-NRI and ODE-RNN) |
+
+GIL-ODE wins every seed in all three cells, with ratios close to those on the full target set.
+The springs and IEEE39 wins depend on the backward smoother. CSG-ODE is not in this table yet:
+its checkpoints predate `--csg-solver`; fixed in `eval_baseline.py`, rerunning.
+
+**Lifting is inactive on springs and charged.** The ratio of the mean lifted correction on
+unobserved agents to the anchored correction on observed ones is 0.003-0.004 on springs and
+charged (0.0004 charged-extrap), against 0.27-0.29 on IEEE39.
+
+- Test-time knockout (delta_U = 0) changes the MSE by <1% on springs and charged. On IEEE39 it
+  costs +9% (interp) and +1% (extrap).
+- Retrained A1 (no lifting) on springs-interp: 3.62e-5 vs 3.58e-5 for the full model, so no
+  effect.
+- Agent dropout (all observations of k agents masked): on springs and charged, the masked
+  agents' error is the same with or without lifting. On IEEE39, lifting reduces it by 11-20%,
+  but the masked-agent error stays near the level of a constant predictor (~88 vs ~102 without
+  lifting).
+
+Where GIL-ODE does win, on springs and charged, the gain comes from anchoring, the dynamics and
+the smoother, not from lifting. The graph itself matters (test-time complete or rewired graph:
+springs-interp x1242 / x387, IEEE39 x1.3-1.7), through the vector field's coupling. The paper's
+lifting claim is currently supported only on IEEE39. A1 is now running on IEEE39 (3 seeds x 2
+tasks, `run_logs/a1_ieee39_queue.sh`).
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)

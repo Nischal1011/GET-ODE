@@ -402,6 +402,11 @@ class GILODEModel(nn.Module):
         #   no_residual / no_guard / no_antisym   drop that term from the vector field
         #   no_null_prior is handled in the training wrapper
         self.ablate = set(ablate)
+        # Evaluation only: decode the PRIOR state h^- at every grid time (before that time's
+        # observation is applied), so a target that coincides with an observation is predicted
+        # without seeing it. Interpolation targets ARE the conditioning observations (LG-ODE's
+        # protocol), and the anchored posterior reproduces them by construction.
+        self.decode_prior = False
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.num_atoms = num_atoms
@@ -671,6 +676,7 @@ class GILODEModel(nn.Module):
                 elif free_run_span is not None and (cur_t - free_branch_t) > free_run_span:
                     h_free, free_branch_t = branch, cur_t
 
+            h_prior = h
             mask_i = obs_mask[:, :, i]  # [B, N] bool
             if mask_i.any():
                 mask_f = mask_i.float()
@@ -722,7 +728,7 @@ class GILODEModel(nn.Module):
                 d = self.fa_U(torch.tanh(self.fa_V(h)))            # [B, N, H]
                 h = h + d - d @ P_row                              # d projected onto null(W)
 
-            outputs[:, :, i] = h
+            outputs[:, :, i] = h_prior if self.decode_prior else h
             prev_t = cur_t
 
         # Zero-mean Gaussian prior on the unobservable latent state. Anchoring constrains only the
@@ -812,13 +818,14 @@ class GILODEModel(nn.Module):
                         else:
                             h_b = odeint(self.ode_func, h_b, torch.stack([nxt_t, cur_t]), method='rk4')[-1]
                         tso_b = tso_b + (nxt_t - cur_t)
+                    h_b_prior = h_b
                     mask_i = obs_mask[:, :, i]
                     if mask_i.any():
                         mask_f = mask_i.float()
                         r = self._innovation(dense[:, :, i, :], h_b, mask_f, K)
                         h_b = self._event_update(h_b, tso_b, S, c, r, mask_f)
                         tso_b = torch.where(mask_i, torch.zeros_like(tso_b), tso_b)
-                    outputs_b[:, :, i] = h_b
+                    outputs_b[:, :, i] = h_b_prior if self.decode_prior else h_b
                     nxt_t = cur_t
 
                 both = fin_f & fin_b

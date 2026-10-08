@@ -36,6 +36,7 @@ p = argparse.ArgumentParser('GIL-ODE evaluation')
 p.add_argument('--ckpt', required=True)
 p.add_argument('--split', default='test', choices=['test', 'val'])
 p.add_argument('--causal', action='store_true')
+p.add_argument('--decode-prior', action='store_true', help='predict each target from the state before its own observation is applied')
 p.add_argument('--drop-agents', type=int, default=0)
 p.add_argument('--drop-seed', type=int, default=0)
 p.add_argument('--knockout-lift', action='store_true')
@@ -78,6 +79,7 @@ model.eval()
 core = model.core
 if cli.causal:
     core.use_smoother = False
+core.decode_prior = cli.decode_prior
 
 N = args.n_balls
 rng = torch.Generator(device='cpu').manual_seed(cli.drop_seed)
@@ -178,6 +180,17 @@ with torch.no_grad():
         pred_flat = pred.reshape(B * N, T_Q, -1)
         truth, tmask = b_de['data'], b_de['mask']
 
+        qi = torch.searchsorted(grid_times, b_de['time_steps'])
+        seen = mask[:, :, qi].reshape(B * N, T_Q)                       # target time observed for that agent
+        tgt = tmask.any(-1)
+        tot.setdefault('overlap', []).append((seen & tgt).sum().item() / max(tgt.sum().item(), 1))
+        # Split the standard metric by whether the target point was also a conditioning input.
+        # In interpolation 'seen' targets can be reproduced by an exact-anchoring model; only the
+        # 'unseen' ones measure interpolation proper. Per-sequence then nanmean (a sequence with no
+        # target in a group is skipped), matching get_mse's normalization within each group.
+        sm = seen.unsqueeze(-1).float()
+        for name, mk in (('mse_seen', tmask * sm), ('mse_unseen', tmask * (1 - sm))):
+            tot.setdefault(name, []).append(torch.nanmean(per_seq_mse(pred_flat, truth, mk)).item())
         tot['mse_check'] += model.get_mse(truth, pred_flat.unsqueeze(0), mask=tmask).item()
         seq = per_seq_mse(pred_flat, truth, tmask)
         tot['mse_full'] += seq.mean().item()
@@ -201,12 +214,14 @@ with torch.no_grad():
                               obs_mask=mask.cpu().numpy(), grid_times=grid_times.cpu().numpy(),
                               S=S_used.cpu().numpy(), dropped=dropped.cpu().numpy()))
 
-res = {'tag': cli.tag, 'ckpt': os.path.basename(cli.ckpt), 'data': args.data, 'mode': args.mode,
+tot['overlap'] = float(np.mean(tot.get('overlap', [0])))
+split = {k: float(np.nanmean(tot[k])) for k in ('mse_seen', 'mse_unseen') if k in tot}
+res = {'tag': cli.tag, 'target_obs_overlap': tot['overlap'], 'ckpt': os.path.basename(cli.ckpt), 'data': args.data, 'mode': args.mode,
        'seed': args.random_seed, 'split': cli.split, 'causal': cli.causal, 'drop_agents': cli.drop_agents,
-       'knockout_lift': cli.knockout_lift, 'graph': cli.graph,
+       'knockout_lift': cli.knockout_lift, 'graph': cli.graph, 'decode_prior': cli.decode_prior,
        'mse_full': tot['mse_full'] / n_batches, 'mse_check': tot['mse_check'] / n_batches,
        'mse_prefix': tot['mse_prefix'] / n_batches,
-       'mse_step': (step_se / np.maximum(step_cnt, 1)).tolist()}
+       **split, 'mse_step': (step_se / np.maximum(step_cnt, 1)).tolist()}
 if cli.drop_agents > 0:
     res['mse_dropped'] = float(np.mean(tot['mse_dropped']))
     res['mse_kept'] = float(np.mean(tot['mse_kept']))
