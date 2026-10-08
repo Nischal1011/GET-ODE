@@ -1629,6 +1629,41 @@ springs-interp x1242 / x387, IEEE39 x1.3-1.7), through the vector field's coupli
 lifting claim is currently supported only on IEEE39. A1 is now running on IEEE39 (3 seeds x 2
 tasks, `run_logs/a1_ieee39_queue.sh`).
 
+
+## Part 29 — Mean-reverting forecast head (charged-extrap go/no-go)
+
+**Diagnosis.** In charged-extrap GIL-ODE is the most accurate model in the first fifth of the
+horizon (1.40 vs LG-ODE 2.11, x1e-2), and the worst-growing after that (12.26 vs 10.28 in the last
+fifth). Springs and IEEE39 show no crossover. The test was evaluation only, with no fitting on
+test: blend each prediction toward the per-feature mean of the validation targets, with one
+weight per forecast step fitted on **validation**, then score test. Results:
+
+- charged: 6.384 / 6.390 / 5.945 -> 5.605 / 5.685 / 5.336 (mean 6.24 -> 5.54). The fitted weight
+  grows from 0.05 in the first fifth to about 0.33 in the last.
+- springs: the weight is ~0 (0.00-0.06) and the change is negligible.
+- averaging the three seed models' predictions gives charged 5.224. That is an ensemble, reported
+  for information only and never used.
+
+So the remaining charged gap is a variance penalty. A deterministic rollout commits to one
+trajectory under chaotic coupling, where the MSE-optimal forecast relaxes toward a conditional
+mean.
+
+**Change.** `--reversion` (lib/gil_ode.py, extrapolation only, like free-running):
+y_hat_i = (1 - s_i) D(h_i) + s_i mu_i, with
+- s_i = sigmoid(kappa([h_i, log(1 + tau_i)])): the gate grows with the time since agent i's last
+  observation;
+- mu_i = M [h_i(last obs), mean_j h_j(last obs)] + m: a graph-conditional mean, per trajectory.
+
+It starts as a near no-op (gate 0.01) and adds 3.3K parameters. It is trained with the
+full-horizon loss (T6), since the prefix loss down-weights exactly the late steps where reversion
+matters. The same flags are used on all three extrapolation cells. The T6 runs (Part 28.5) are
+its "no head" ablation.
+
+**Queue** (`run_logs/reversion_queue.sh`): charged x3 first, then springs x3, then IEEE39 x3. A1
+on IEEE39 was paused 1 h into its first run and is re-queued after this. The final configuration
+will be adopted only if the head wins on validation, and is reported on test once for all three
+cells.
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)

@@ -73,7 +73,8 @@ model = GILODEBaseline(input_dim=dataloader.feature, hidden_dim=args.hidden_dim,
                        mode=args.mode, mlp_width=args.mlp_width, ode_substeps=args.ode_substeps,
                        ode_tol=args.ode_tol, use_smoother=getattr(args, 'smoother', False),
                        smoother_mode=getattr(args, 'smoother_mode', 'coldstart'),
-                       ablate=tuple(a for a in getattr(args, 'ablate', '').split(',') if a)).to(device)
+                       ablate=tuple(a for a in getattr(args, 'ablate', '').split(',') if a),
+                       use_reversion=getattr(args, 'reversion', False)).to(device)
 model.load_state_dict(ck['state_dict'], strict=False)
 model.eval()
 core = model.core
@@ -236,6 +237,7 @@ if cli.conductance:
     np.save(cli.conductance, (cond_acc['sum'] / max(cond_acc['n'], 1)).cpu().numpy())
 if cli.dump:
     os.makedirs(os.path.dirname(cli.dump) or '.', exist_ok=True)
-    keys = dumps[0].keys()
+    # Batches can have different grid lengths; keep only arrays whose shapes agree across batches.
+    keys = [k for k in dumps[0] if all(d[k].shape[1:] == dumps[0][k].shape[1:] for d in dumps)]
     np.savez_compressed(cli.dump, **{k: np.concatenate([d[k] for d in dumps]) if dumps[0][k].ndim and k not in ('t_query', 'grid_times')
                                      else dumps[0][k] for k in keys})

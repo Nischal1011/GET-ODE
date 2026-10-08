@@ -73,7 +73,7 @@ class GILODEBaseline(VAE_Baseline):
     def __init__(self, input_dim, hidden_dim, num_atoms, dataset, obsrv_std, device, mode="interp",
                  mlp_width=None, ode_substeps=1, ode_tol=None, use_forecast_adapter=False,
                  free_run=False, free_run_weight=FREE_RUN_WEIGHT, use_smoother=False,
-                 smoother_mode='full', ablate=(), horizon_loss='prefix'):
+                 smoother_mode='full', ablate=(), horizon_loss='prefix', use_reversion=False):
         super(GILODEBaseline, self).__init__(
             input_dim=input_dim, latent_dim=hidden_dim, z0_prior=None, device=device, obsrv_std=obsrv_std)
         self.num_atoms = num_atoms
@@ -89,7 +89,7 @@ class GILODEBaseline(VAE_Baseline):
                                 ode_substeps=ode_substeps, ode_tol=ode_tol,
                                 use_forecast_adapter=use_forecast_adapter,
                                 use_smoother=use_smoother, smoother_mode=smoother_mode,
-                                ablate=ablate)
+                                ablate=ablate, use_reversion=use_reversion)
         self.null_prior_weight = 0.0 if 'no_null_prior' in ablate else NULL_PRIOR_WEIGHT
 
     def compute_all_losses(self, batch_dict_encoder, batch_dict_decoder, batch_dict_graph,

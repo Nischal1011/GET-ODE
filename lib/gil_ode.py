@@ -392,7 +392,7 @@ class GILODEModel(nn.Module):
 
     def __init__(self, input_dim, hidden_dim, num_atoms, device, mlp_width=None, ode_substeps=1, ode_tol=None, ode_max_depth=6,
                  use_forecast_adapter=False, forecast_adapter_rank=4, use_smoother=False,
-                 smoother_mode='full', ablate=()):
+                 smoother_mode='full', ablate=(), use_reversion=False):
         super(GILODEModel, self).__init__()
         # Ablations (paper Table 2), all off in the reported model:
         #   no_lift      unobserved agents get no correction (delta_U = 0): per-agent update only
@@ -445,6 +445,33 @@ class GILODEModel(nn.Module):
         self._calib_sumsq = 0.0
         self.lifting = GraphLifting(hidden_dim)
         self.gate = GateNet()
+
+        # ---- Mean-reverting forecast head (CHANGES.md Part 29) ----
+        # Between observations the anchored state is a point estimate whose uncertainty grows
+        # with the time tau_i since agent i was last observed. Under chaotic coupling (charged
+        # particles' close encounters) the MSE-optimal forecast then relaxes from the rolled-out
+        # trajectory toward a conditional mean, as a Kalman forecast's would, instead of
+        # committing to one sharp path. Measured before building this: a per-step blend toward the
+        # global mean, fitted on validation only, cut charged-extrap test MSE 6.24 -> 5.54 and was
+        # ~0 on springs (run_logs/eval/shrink_analysis.py).
+        #
+        #   y_hat_i(t) = (1 - s_i) D(h_i(t)) + s_i mu_i
+        #   s_i  = sigmoid(kappa([h_i(t), log(1 + tau_i)]))           reversion gate
+        #   mu_i = M [h_i(t_i^last), mean_j h_j(t_j^last)] + m         graph-conditional mean
+        #
+        # mu is read from the states at each agent's last observation (the information the
+        # forecast is conditioned on) together with the graph average, so it is per trajectory,
+        # not a global constant. The gate's output layer is zero with bias logit(0.01), so the head
+        # starts as an (almost) exact no-op and engages only where the loss pays for it.
+        self.use_reversion = use_reversion
+        if use_reversion:
+            self.rev_gate = utils.create_net(hidden_dim + 1, 1, n_layers=0, n_units=32, nonlinear=nn.Tanh)
+            self.rev_mean = nn.Linear(2 * hidden_dim, input_dim)
+            utils.init_network_weights(self.rev_gate)
+            utils.init_network_weights(self.rev_mean)
+            with torch.no_grad():
+                self.rev_gate[-1].weight.zero_()
+                self.rev_gate[-1].bias.fill_(-4.595)   # logit(0.01)
         utils.init_network_weights(self.decoder)
         self.ode_func.ablate = self.ablate
         if 'overwrite' in self.ablate:
@@ -844,6 +871,19 @@ class GILODEModel(nn.Module):
                 null_penalty = 0.5 * (null_penalty + hb_null.pow(2).sum(dim=-1).mean())
 
         pred = self.decoder(h_at_query)
+
+        if self.use_reversion:
+            # Each agent's last observation index on the grid, its state there, and the time from
+            # it to every query. Agents never observed in the window fall back to the window start.
+            Q = decoder_time_steps.shape[0]
+            idx = torch.arange(T, device=obs_mask.device).view(1, 1, T).expand(B, N, T)
+            last = torch.where(obs_mask, idx, torch.zeros_like(idx)).amax(-1)            # [B, N]
+            h_last = torch.gather(outputs, 2, last.view(B, N, 1, 1).expand(B, N, 1, self.hidden_dim)).squeeze(2)
+            mu = self.rev_mean(torch.cat([h_last, h_last.mean(1, keepdim=True).expand(-1, N, -1)], -1))  # [B, N, D]
+            tau_q = (decoder_time_steps.view(1, 1, Q) - grid_times[last].unsqueeze(-1)).clamp(min=0)    # [B, N, Q]
+            s_rev = torch.sigmoid(self.rev_gate(torch.cat([h_at_query, torch.log1p(tau_q).unsqueeze(-1)], -1)))
+            pred = (1 - s_rev) * pred + s_rev * mu.unsqueeze(2)
+            self.last_diag_rev = float(s_rev.mean())
 
         if free_preds:
             free_run = (torch.stack(free_preds, dim=2),    # [B, N, K, D]
