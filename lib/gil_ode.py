@@ -392,8 +392,20 @@ class GILODEModel(nn.Module):
 
     def __init__(self, input_dim, hidden_dim, num_atoms, device, mlp_width=None, ode_substeps=1, ode_tol=None, ode_max_depth=6,
                  use_forecast_adapter=False, forecast_adapter_rank=4, use_smoother=False,
-                 smoother_mode='full', ablate=(), use_reversion=False):
+                 smoother_mode='full', ablate=(), use_reversion=False, n_particles=1):
         super(GILODEModel, self).__init__()
+        # Probabilistic GIL-ODE (paper/probabilistic_design.md, CHANGES.md Part 30). With
+        # n_particles = K > 1 the latent state is an ensemble of K particles following the SDE
+        #   dh = f(h) dt + diag(sigma) dW
+        # (split-step: the deterministic RK4 drift over a segment, then one Euler-Maruyama
+        # diffusion increment sqrt(dt) * sigma * eps). Every particle is anchored and lifted
+        # exactly as before, so with noiseless measurements observed agents collapse onto y in the
+        # observable subspace while the null-space spread survives. The point forecast is the
+        # ensemble mean; the samples are kept in self.last_samples for the CRPS term.
+        self.n_particles = n_particles
+        if n_particles > 1:
+            # softplus(-3.0) ~ 0.049 per sqrt(time unit): small, and learned.
+            self.log_diffusion = nn.Parameter(torch.full((hidden_dim,), -3.0))
         # Ablations (paper Table 2), all off in the reported model:
         #   no_lift      unobserved agents get no correction (delta_U = 0): per-agent update only
         #   overwrite    replace subspace anchoring by h_obs <- E(y) (the pre-anchoring rule)
@@ -602,8 +614,32 @@ class GILODEModel(nn.Module):
         eye = torch.eye(G.shape[0], device=W.device, dtype=W.dtype)
         return torch.linalg.solve(G + ANCHOR_RTOL * scale * eye, W).transpose(0, 1)  # [H, D]
 
+    def _diffuse(self, h, dt):
+        '''Euler-Maruyama diffusion increment over a segment of length |dt| (no-op if K = 1).'''
+        if self.n_particles == 1:
+            return h
+        sigma = F.softplus(self.log_diffusion)
+        return h + sigma * torch.sqrt(torch.abs(dt)) * torch.randn_like(h)
+
     def forward(self, dense, obs_mask, grid_times, decoder_time_steps, S, c, free_run_from=None,
                 free_run_span=None, free_run_detach=False):
+        '''Ensemble wrapper: with K particles, fold them into the batch dimension, run the
+        filter once, and return the ensemble-mean prediction (samples in self.last_samples).'''
+        K = self.n_particles
+        if K == 1:
+            return self._forward_single(dense, obs_mask, grid_times, decoder_time_steps, S, c,
+                                        free_run_from, free_run_span, free_run_detach)
+        B = dense.shape[0]
+        rep_ = lambda x: x.repeat_interleave(K, dim=0)
+        pred, free_run, null_penalty = self._forward_single(
+            rep_(dense), rep_(obs_mask), grid_times, decoder_time_steps, rep_(S), rep_(c),
+            free_run_from, free_run_span, free_run_detach)
+        samples = pred.view(B, K, *pred.shape[1:])                  # [B, K, N, T_Q, D]
+        self.last_samples = samples
+        return samples.mean(1), free_run, null_penalty
+
+    def _forward_single(self, dense, obs_mask, grid_times, decoder_time_steps, S, c, free_run_from=None,
+                        free_run_span=None, free_run_detach=False):
         '''
         dense: [B, N, T, D], obs_mask: [B, N, T] bool, grid_times: [T] (union of every node's
         observation times and the decoder's query times, ascending), S/c: [B, N, N].
@@ -677,11 +713,13 @@ class GILODEModel(nn.Module):
                 else:
                     h = odeint(self.ode_func, h, torch.stack([prev_t, cur_t]), method='rk4')[-1]
 
+                h = self._diffuse(h, cur_t - prev_t)
                 time_since_obs = time_since_obs + (cur_t - prev_t)
                 if h_free is not None:
                     h_free = (self._integrate(h_free, prev_t, cur_t) if self.ode_tol is not None
                               else odeint(self.ode_func, h_free,
                                           torch.stack([prev_t, cur_t]), method='rk4')[-1])
+                    h_free = self._diffuse(h_free, cur_t - prev_t)
 
             if free_run_from is not None and i >= free_run_from:
                 # Branch off the main path, and, when a span is set, re-branch once this stretch
@@ -844,6 +882,7 @@ class GILODEModel(nn.Module):
                             h_b = self._integrate(h_b, nxt_t, cur_t)
                         else:
                             h_b = odeint(self.ode_func, h_b, torch.stack([nxt_t, cur_t]), method='rk4')[-1]
+                        h_b = self._diffuse(h_b, nxt_t - cur_t)
                         tso_b = tso_b + (nxt_t - cur_t)
                     h_b_prior = h_b
                     mask_i = obs_mask[:, :, i]

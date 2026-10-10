@@ -1664,6 +1664,31 @@ on IEEE39 was paused 1 h into its first run and is re-queued after this. The fin
 will be adopted only if the head wins on validation, and is reported on test once for all three
 cells.
 
+
+### 29.1 Result: the head helps but does not close charged-extrap
+
+Test MSE x1e-2 (standard metric), seeds 1991/1992/1993, `--reversion --horizon-loss full`:
+- charged 6.026 / 5.885 / 5.779 (mean 5.897; previously 6.233; LG-ODE 5.235). Still a loss.
+- IEEE39 6.319 / 6.477 / 6.398 (mean 6.398; previously 7.036).
+- springs 0.955 / 0.902 / 0.764 (mean 0.874; previously 0.873).
+
+Validation prefers the head on charged and IEEE39. The learned gate is about 0.12 on charged and
+about 0.02 on IEEE39. Fitting a further per-step blend on validation on top of these models gives
+charged 5.43, and averaging the three seed models gives 5.30. Neither beats 5.235, and the ensemble
+would be unfair anyway.
+
+## Part 30 — Probabilistic GIL-ODE (graph ensemble-Kalman ODE), v1
+
+Design: `paper/probabilistic_design.md`. The latent state is an ensemble of K = 8 particles
+following a latent SDE: the error-controlled RK4 drift, then one Euler-Maruyama increment per
+segment with a learned diagonal diffusion. Every particle is anchored and lifted as before. The
+point forecast is the ensemble mean. The loss is the Gaussian likelihood of the ensemble mean
+(full horizon) plus the fair ensemble CRPS / sigma_obs. Particles are folded into the batch
+dimension, so the cost is only about 10-15% above deterministic (7.1 vs 6.3 s per batch on
+charged) at 8.8 GB of GPU memory. Go/no-go: charged-extrap, 3 seeds (`run_logs/prob_queue*.sh`),
+against LG-ODE 5.235 and the deterministic T6 run (6.07), which is the same configuration without
+particles.
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)

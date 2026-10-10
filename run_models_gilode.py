@@ -43,6 +43,8 @@ parser.add_argument('--horizon-loss', type=str, default='prefix', choices=['pref
                     help='extrap training loss: mean over 20..100%% horizon prefixes, or the full horizon only')
 parser.add_argument('--reversion', action='store_true',
                     help='mean-reverting forecast head (lib/gil_ode.py, CHANGES.md Part 29)')
+parser.add_argument('--particles', type=int, default=1,
+                    help='K > 1: probabilistic GIL-ODE, ensemble of K stochastic particles (CHANGES.md Part 30)')
 parser.add_argument('--ablate', type=str, default='',
                     help='comma-separated ablations (lib/gil_ode.py): no_lift, overwrite, no_gate, complete, '
                          'no_residual, no_guard, no_antisym, no_null_prior')
@@ -166,7 +168,8 @@ if __name__ == '__main__':
                            free_run=args.free_run, free_run_weight=args.free_run_weight,
                            use_smoother=args.smoother, smoother_mode=args.smoother_mode,
                            ablate=tuple(a for a in args.ablate.split(',') if a),
-                           horizon_loss=args.horizon_loss, use_reversion=args.reversion).to(device)
+                           horizon_loss=args.horizon_loss, use_reversion=args.reversion,
+                           n_particles=args.particles).to(device)
 
     if args.load is not None:
         ckpt_path = os.path.join(args.save, args.load)
@@ -415,6 +418,9 @@ if __name__ == '__main__':
         message_graph = ('Epoch {:04d} [Graph params] | lambda {:.4f} | rho {:.4f} | '
                          'decoder cond {:.2f} | guard gamma {:.4f} R {:.4f}|').format(
             epo, lam_val, rho_val, cond_val, gamma_val, float(model.core.ode_func.guard_R))
+        if args.particles > 1:
+            message_graph += ' diffusion sigma mean {:.4f}|'.format(
+                torch.nn.functional.softplus(model.core.log_diffusion).mean().item())
         if args.reversion:
             message_graph += ' reversion gate mean {:.4f}|'.format(getattr(model.core, 'last_diag_rev', float('nan')))
 
