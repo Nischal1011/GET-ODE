@@ -45,6 +45,8 @@ parser.add_argument('--reversion', action='store_true',
                     help='mean-reverting forecast head (lib/gil_ode.py, CHANGES.md Part 29)')
 parser.add_argument('--particles', type=int, default=1,
                     help='K > 1: probabilistic GIL-ODE, ensemble of K stochastic particles (CHANGES.md Part 30)')
+parser.add_argument('--debias', action='store_true',
+                    help='with --particles: unbiased infinite-ensemble mean loss (subtract s^2/K)')
 parser.add_argument('--ablate', type=str, default='',
                     help='comma-separated ablations (lib/gil_ode.py): no_lift, overwrite, no_gate, complete, '
                          'no_residual, no_guard, no_antisym, no_null_prior')
@@ -169,7 +171,7 @@ if __name__ == '__main__':
                            use_smoother=args.smoother, smoother_mode=args.smoother_mode,
                            ablate=tuple(a for a in args.ablate.split(',') if a),
                            horizon_loss=args.horizon_loss, use_reversion=args.reversion,
-                           n_particles=args.particles).to(device)
+                           n_particles=args.particles, debias=args.debias).to(device)
 
     if args.load is not None:
         ckpt_path = os.path.join(args.save, args.load)

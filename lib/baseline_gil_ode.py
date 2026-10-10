@@ -74,7 +74,7 @@ class GILODEBaseline(VAE_Baseline):
                  mlp_width=None, ode_substeps=1, ode_tol=None, use_forecast_adapter=False,
                  free_run=False, free_run_weight=FREE_RUN_WEIGHT, use_smoother=False,
                  smoother_mode='full', ablate=(), horizon_loss='prefix', use_reversion=False,
-                 n_particles=1):
+                 n_particles=1, debias=False):
         super(GILODEBaseline, self).__init__(
             input_dim=input_dim, latent_dim=hidden_dim, z0_prior=None, device=device, obsrv_std=obsrv_std)
         self.num_atoms = num_atoms
@@ -86,6 +86,12 @@ class GILODEBaseline(VAE_Baseline):
         self.free_run = free_run
         self.free_run_weight = free_run_weight
         self.horizon_loss = horizon_loss   # 'prefix' (multi-horizon average) or 'full'
+        # Ensemble-mean loss debiasing (CHANGES.md Part 30.1). With K particles, the squared error
+        # of the ensemble mean m_K has expectation (m_inf - y)^2 + sigma^2 / K: the second term is
+        # Monte Carlo noise of a finite ensemble, and the loss punishing it drives the learned
+        # diffusion toward zero (measured: spread variance 4-9% of the error). Subtracting the
+        # unbiased estimate s^2 / K gives an unbiased estimate of the infinite-ensemble error.
+        self.debias = debias
         self.core = GILODEModel(input_dim, hidden_dim, num_atoms, device, mlp_width=mlp_width,
                                 ode_substeps=ode_substeps, ode_tol=ode_tol,
                                 use_forecast_adapter=use_forecast_adapter,
@@ -229,6 +235,9 @@ class GILODEBaseline(VAE_Baseline):
             crps_val = crps.item()
             if self.training:
                 loss = loss + crps / self.obsrv_std.squeeze()
+                if self.debias:
+                    var_mean = X.var(1, unbiased=True) / Kp                      # [B, N, T_Q, D]
+                    loss = loss - (var_mean * m).sum() / m.sum().clamp(min=1.0) / (2 * self.obsrv_std.squeeze() ** 2)
 
         return {
             "loss": loss,

@@ -47,12 +47,16 @@ p.add_argument('--dump', default=None)
 p.add_argument('--dump-batches', type=int, default=1)
 p.add_argument('--out', default=None, help='append the JSON result line to this file')
 p.add_argument('--tag', default='')
+p.add_argument('--particles', type=int, default=None, help='override the ensemble size at test time')
+p.add_argument('--batch-size', type=int, default=None, help='override the eval batch size (memory)')
 cli = p.parse_args()
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 ck = torch.load(cli.ckpt, map_location=device, weights_only=False)
 args = ck['args']
 
+if cli.batch_size is not None:
+    args.batch_size = cli.batch_size
 # Same seeding as training, so the loader draws the identical observation masks.
 torch.manual_seed(args.random_seed)
 np.random.seed(args.random_seed)
@@ -75,7 +79,7 @@ model = GILODEBaseline(input_dim=dataloader.feature, hidden_dim=args.hidden_dim,
                        smoother_mode=getattr(args, 'smoother_mode', 'coldstart'),
                        ablate=tuple(a for a in getattr(args, 'ablate', '').split(',') if a),
                        use_reversion=getattr(args, 'reversion', False),
-                       n_particles=getattr(args, 'particles', 1)).to(device)
+                       n_particles=cli.particles or getattr(args, 'particles', 1)).to(device)
 model.load_state_dict(ck['state_dict'], strict=False)
 model.eval()
 core = model.core
@@ -204,6 +208,10 @@ with torch.no_grad():
             tot['mse_dropped'].append(seq[d].mean().item())
             tot['mse_kept'].append(seq[~d].mean().item())
 
+        if core.n_particles > 1:
+            X = core.last_samples                                   # [B, K, N, T_Q, D]
+            var_t = (X.var(1, unbiased=True).reshape(B * N, T_Q, -1) * tmask).sum(dim=(0, 2)).cpu().numpy()
+            tot['var_step'] = var_t if 'var_step' not in tot else tot['var_step'] + var_t
         se_t = ((pred_flat - truth) ** 2 * tmask).sum(dim=(0, 2)).cpu().numpy()
         cnt_t = tmask.sum(dim=(0, 2)).cpu().numpy()
         step_se = se_t if step_se is None else step_se + se_t
@@ -223,7 +231,9 @@ res = {'tag': cli.tag, 'target_obs_overlap': tot['overlap'], 'ckpt': os.path.bas
        'knockout_lift': cli.knockout_lift, 'graph': cli.graph, 'decode_prior': cli.decode_prior,
        'mse_full': tot['mse_full'] / n_batches, 'mse_check': tot['mse_check'] / n_batches,
        'mse_prefix': tot['mse_prefix'] / n_batches,
-       **split, 'mse_step': (step_se / np.maximum(step_cnt, 1)).tolist()}
+       **split, 'particles': core.n_particles,
+       'var_step': (tot['var_step'] / np.maximum(step_cnt, 1)).tolist() if 'var_step' in tot else None,
+       'mse_step': (step_se / np.maximum(step_cnt, 1)).tolist()}
 if cli.drop_agents > 0:
     res['mse_dropped'] = float(np.mean(tot['mse_dropped']))
     res['mse_kept'] = float(np.mean(tot['mse_kept']))

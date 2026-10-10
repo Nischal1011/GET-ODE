@@ -1689,6 +1689,22 @@ charged) at 8.8 GB of GPU memory. Go/no-go: charged-extrap, 3 seeds (`run_logs/p
 against LG-ODE 5.235 and the deterministic T6 run (6.07), which is the same configuration without
 particles.
 
+
+### 30.1 v1 result, under-dispersion, and the debiased loss
+
+v1 charged-extrap test MSE (x1e-2): 5.624 / 5.586 / 5.809, mean 5.673. That is the best GIL-ODE
+variant so far (deterministic T6 6.07, reversion head 5.90), but LG-ODE is at 5.235. Re-evaluating
+the same checkpoints with more particles at test time gives K = 8: 5.660, K = 32: 5.626,
+K = 64: 5.618, so averaging is not where the gain comes from. The ensemble is severely
+under-dispersed: (1 + 1/K) * ensemble variance is 4% of the ensemble-mean squared error in the
+first fifth of the horizon and 9% in the last, where a calibrated ensemble would be near 1. The
+learned diffusion fell from 0.049 to 0.034 during training.
+
+Cause: E[(m_K - y)^2] = (m_inf - y)^2 + sigma^2 / K. The likelihood term (weight 1/(2 sigma_obs^2))
+penalises the Monte Carlo term and outweighs the CRPS term, so training shrinks the diffusion.
+Fix (`--debias`): subtract the unbiased estimate s^2 / K, giving an unbiased estimate of the
+infinite-ensemble error. Running charged x3 (`run_logs/probdb_queue.sh`).
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)
