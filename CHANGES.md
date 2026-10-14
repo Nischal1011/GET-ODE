@@ -1780,6 +1780,38 @@ inconsistency acted as an accidental long-horizon curriculum for the continuous-
 flag stays opt-in and unused; no reported number uses it. The interpolation ablations resumed
 (`run_logs/interp_ablation_queue2.sh`).
 
+
+## Part 32 — Literature-guided: time-reversal consistency with an unlabelled horizon extension
+
+Survey of what GIL-ODE does not yet do:
+- TANGO (Huang et al., NeurIPS 2023 DLDE workshop): time-reversal regulariser; LG-ODE
+  extrapolation improves by 11-35% on spring-type systems.
+- PGODE (Luo et al., ICML 2024): a mixture of prototype dynamics experts with object-specific
+  gating; the multi-prototype component is its largest ablation gain, and it beats LG-ODE on
+  charged.
+- HOPE (Luo et al., ICML 2023): second-order dynamics and latent edge states.
+
+TANGO fits our evidence best. GIL-ODE's deficit on charged is long-rollout error growth, and Part
+31.1 showed that GIL-ODE benefits from longer training rollouts.
+
+**Change** (`--reversal-weight`, `--reversal-ext`, extrapolation training only, `lib/gil_ode.py`
+`_reversal_loss`). From the state at the last observation:
+1. Take the filter's forecast states over the labelled horizon, then roll forward `reversal_ext`
+   x that length further, unlabelled. The test forecast is about 2x the labelled training horizon
+   on springs and charged.
+2. Reverse the end state, R(q, v) = (q, -v), roll forward over the same time steps, reverse again,
+   and penalise the decoded mismatch with the forward path, weight x 1/(2 sigma_obs^2).
+
+The loss is exactly zero for time-reversible latent dynamics and needs no labels. GIL-ODE's
+second-order latent split gives R a natural definition. The novelty over TANGO is applying the
+consistency past the labelled horizon, inside an assimilating filter.
+
+**Test** (`run_logs/reversal_queue.sh`): charged seed 1991 on the Part 29 configuration (seed
+1991 = 6.026), weight 0.1 and weight 1.0, extension x1. The weight is chosen on validation and
+then used unchanged on every cell. Cost: about 2.5x per batch, measured with three jobs sharing
+the GPU. The interpolation ablation queue is paused again; A4 springs-interp continues (overwrite
+anchoring is stiff, about 20 min per epoch).
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)

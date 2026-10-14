@@ -392,8 +392,20 @@ class GILODEModel(nn.Module):
 
     def __init__(self, input_dim, hidden_dim, num_atoms, device, mlp_width=None, ode_substeps=1, ode_tol=None, ode_max_depth=6,
                  use_forecast_adapter=False, forecast_adapter_rank=4, use_smoother=False,
-                 smoother_mode='full', ablate=(), use_reversion=False, n_particles=1):
+                 smoother_mode='full', ablate=(), use_reversion=False, n_particles=1,
+                 reversal_ext=0.0):
         super(GILODEModel, self).__init__()
+        # Time-reversal consistency (CHANGES.md Part 32; after TANGO, Huang et al. 2023). Set by the
+        # training wrapper (self.reversal_active) in extrapolation training only. From the state at
+        # the last observation, the forecast is rolled forward to the end of the labelled horizon
+        # and then reversal_ext times further (UNLABELLED: the test forecast is ~2x the labelled
+        # training horizon on springs/charged). The end state is reversed, R(q, v) = (q, -v),
+        # rolled forward for the same duration under the same dynamics, reversed again, and
+        # compared with the forward path in observation space. Exactly zero for time-reversible
+        # latent dynamics; needs no labels, so it supervises rollouts past the labelled horizon.
+        self.reversal_ext = reversal_ext
+        self.reversal_active = False
+        self.last_reversal = None
         # Probabilistic GIL-ODE (paper/probabilistic_design.md, CHANGES.md Part 30). With
         # n_particles = K > 1 the latent state is an ensemble of K particles following the SDE
         #   dh = f(h) dt + diag(sigma) dW
@@ -613,6 +625,45 @@ class GILODEModel(nn.Module):
         scale = G.diagonal(dim1=-2, dim2=-1).mean().clamp(min=1e-12)
         eye = torch.eye(G.shape[0], device=W.device, dtype=W.dtype)
         return torch.linalg.solve(G + ANCHOR_RTOL * scale * eye, W).transpose(0, 1)  # [H, D]
+
+    def _reverse(self, h):
+        q = self.ode_func.q_dim
+        return torch.cat([h[..., :q], -h[..., q:]], dim=-1)
+
+    def _reversal_loss(self, outputs, obs_mask, grid_times, time_since_obs):
+        nz = obs_mask.any(dim=1).any(dim=0).nonzero()
+        if nz.numel() == 0:
+            return None
+        i0 = int(nz.max().item())
+        T = grid_times.shape[0]
+        if T - i0 < 3:
+            return None
+        # Forward path: the filter's own states from the last observation to the grid end, then an
+        # unlabelled extension on a uniform grid with the forecast's median step.
+        fwd_t = grid_times[i0:]
+        fwd_h = [outputs[:, :, k] for k in range(i0, T)]
+        dt = (fwd_t[1:] - fwd_t[:-1]).median()
+        n_ext = int(round(self.reversal_ext * (fwd_t[-1] - fwd_t[0]).item() / max(dt.item(), 1e-8)))
+        h = fwd_h[-1]
+        self.ode_func.set_tau(time_since_obs, grid_times[-1])
+        t_cur = fwd_t[-1]
+        ext_t = []
+        for _ in range(n_ext):
+            h = odeint(self.ode_func, h, torch.stack([t_cur, t_cur + dt]), method='rk4')[-1]
+            t_cur = t_cur + dt
+            fwd_h.append(h); ext_t.append(t_cur)
+        times = torch.cat([fwd_t, torch.stack(ext_t)]) if ext_t else fwd_t
+        # Reversed path: R(h_end), integrated forward for the same durations in reverse order.
+        hr = self._reverse(fwd_h[-1])
+        t_r = times[-1]
+        loss, n = 0.0, 0
+        for k in range(len(times) - 2, -1, -1):
+            step = times[k + 1] - times[k]
+            hr = odeint(self.ode_func, hr, torch.stack([t_r, t_r + step]), method='rk4')[-1]
+            t_r = t_r + step
+            loss = loss + (self.decoder(self._reverse(hr)) - self.decoder(fwd_h[k])).pow(2).mean()
+            n += 1
+        return loss / max(n, 1)
 
     def _diffuse(self, h, dt):
         '''Euler-Maruyama diffusion increment over a segment of length |dt| (no-op if K = 1).'''
@@ -837,6 +888,9 @@ class GILODEModel(nn.Module):
                 'f_norm': f_final.norm(dim=-1).mean().item(),
                 'refines': self._refine_count,
             }
+
+        if self.reversal_active:
+            self.last_reversal = self._reversal_loss(outputs, obs_mask, grid_times, time_since_obs)
 
         query_idx = torch.searchsorted(grid_times, decoder_time_steps)
         h_at_query = outputs[:, :, query_idx]

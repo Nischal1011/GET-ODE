@@ -74,7 +74,7 @@ class GILODEBaseline(VAE_Baseline):
                  mlp_width=None, ode_substeps=1, ode_tol=None, use_forecast_adapter=False,
                  free_run=False, free_run_weight=FREE_RUN_WEIGHT, use_smoother=False,
                  smoother_mode='full', ablate=(), horizon_loss='prefix', use_reversion=False,
-                 n_particles=1, debias=False):
+                 n_particles=1, debias=False, reversal_weight=0.0, reversal_ext=0.0):
         super(GILODEBaseline, self).__init__(
             input_dim=input_dim, latent_dim=hidden_dim, z0_prior=None, device=device, obsrv_std=obsrv_std)
         self.num_atoms = num_atoms
@@ -96,7 +96,9 @@ class GILODEBaseline(VAE_Baseline):
                                 ode_substeps=ode_substeps, ode_tol=ode_tol,
                                 use_forecast_adapter=use_forecast_adapter,
                                 use_smoother=use_smoother, smoother_mode=smoother_mode,
-                                ablate=ablate, use_reversion=use_reversion, n_particles=n_particles)
+                                ablate=ablate, use_reversion=use_reversion, n_particles=n_particles,
+                                reversal_ext=reversal_ext)
+        self.reversal_weight = reversal_weight
         self.null_prior_weight = 0.0 if 'no_null_prior' in ablate else NULL_PRIOR_WEIGHT
 
     def compute_all_losses(self, batch_dict_encoder, batch_dict_decoder, batch_dict_graph,
@@ -173,6 +175,8 @@ class GILODEBaseline(VAE_Baseline):
                 if last_obs_idx > 2:
                     free_run_from = int(torch.randint(1, last_obs_idx - 1, (1,)).item())
 
+        self.core.reversal_active = (self.reversal_weight > 0 and self.training and self.mode == "extrap")
+        self.core.last_reversal = None
         pred, free_run, null_penalty = self.core(dense, mask, grid_times, decoder_time_steps, S, c,
                                                  free_run_from=free_run_from)  # [B, N, T_Q, D]
 
@@ -221,6 +225,11 @@ class GILODEBaseline(VAE_Baseline):
         if self.training:
             loss = loss + self.null_prior_weight * null_penalty
 
+        rev_val = 0.0
+        if self.core.last_reversal is not None:
+            rev_val = self.core.last_reversal.item()
+            loss = loss + self.reversal_weight * self.core.last_reversal / (2 * self.obsrv_std.squeeze() ** 2)
+
         crps_val = 0.0
         if self.core.n_particles > 1:
             # Fair (unbiased) ensemble CRPS over observed targets, a strictly proper scoring rule
@@ -243,6 +252,7 @@ class GILODEBaseline(VAE_Baseline):
             "loss": loss,
             "null_penalty": null_penalty.data.item(),
             "crps": crps_val,
+            "reversal": rev_val,
             "likelihood": torch.mean(rec_likelihood).data.item(),
             "mse": torch.mean(mse_val).data.item(),
             "kl_first_p": 0.0,  # no single scalar to track anymore -- gate is now per-node/state-dependent

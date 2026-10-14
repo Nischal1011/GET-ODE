@@ -48,6 +48,10 @@ parser.add_argument('--particles', type=int, default=1,
                     help='K > 1: probabilistic GIL-ODE, ensemble of K stochastic particles (CHANGES.md Part 30)')
 parser.add_argument('--debias', action='store_true',
                     help='with --particles: unbiased infinite-ensemble mean loss (subtract s^2/K)')
+parser.add_argument('--reversal-weight', type=float, default=0.0,
+                    help='time-reversal consistency weight (extrap training only; CHANGES.md Part 32)')
+parser.add_argument('--reversal-ext', type=float, default=0.0,
+                    help='extend the reversal rollout this many labelled-horizon lengths past the labels (unlabelled)')
 parser.add_argument('--ablate', type=str, default='',
                     help='comma-separated ablations (lib/gil_ode.py): no_lift, overwrite, no_gate, complete, '
                          'no_residual, no_guard, no_antisym, no_null_prior')
@@ -172,7 +176,8 @@ if __name__ == '__main__':
                            use_smoother=args.smoother, smoother_mode=args.smoother_mode,
                            ablate=tuple(a for a in args.ablate.split(',') if a),
                            horizon_loss=args.horizon_loss, use_reversion=args.reversion,
-                           n_particles=args.particles, debias=args.debias).to(device)
+                           n_particles=args.particles, debias=args.debias,
+                           reversal_weight=args.reversal_weight, reversal_ext=args.reversal_ext).to(device)
 
     if args.load is not None:
         ckpt_path = os.path.join(args.save, args.load)
@@ -322,6 +327,8 @@ if __name__ == '__main__':
         # the epoch logger reports an eval batch, not training -- which is why it read 0.
         _d = getattr(model.core, 'last_diag', {})
         diag_state['refines'] = diag_state.get('refines', 0) + _d.get('refines', 0)
+        diag_state['reversal'] = diag_state.get('reversal', 0.0) + train_res.get('reversal', 0.0)
+        diag_state['nb'] = diag_state.get('nb', 0) + 1
         optimizer.step()
         loss_value = loss.data.item()
         del loss
@@ -421,6 +428,9 @@ if __name__ == '__main__':
         message_graph = ('Epoch {:04d} [Graph params] | lambda {:.4f} | rho {:.4f} | '
                          'decoder cond {:.2f} | guard gamma {:.4f} R {:.4f}|').format(
             epo, lam_val, rho_val, cond_val, gamma_val, float(model.core.ode_func.guard_R))
+        if args.reversal_weight > 0:
+            message_graph += ' reversal mse {:.6f}|'.format(diag_state.get('reversal', 0.0) / max(diag_state.get('nb', 1), 1))
+            diag_state['reversal'] = 0.0; diag_state['nb'] = 0
         if args.particles > 1:
             message_graph += ' diffusion sigma mean {:.4f}|'.format(
                 torch.nn.functional.softplus(model.core.log_diffusion).mean().item())
