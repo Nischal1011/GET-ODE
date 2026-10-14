@@ -1812,6 +1812,16 @@ then used unchanged on every cell. Cost: about 2.5x per batch, measured with thr
 the GPU. The interpolation ablation queue is paused again; A4 springs-interp continues (overwrite
 anchoring is stiff, about 20 min per epoch).
 
+
+### 32.1 Result: time-reversal consistency hurts (rejected)
+
+Charged seed 1991 (Part 29 configuration = 6.026 test, best val 0.0597): weight 0.1 gives 6.178
+(val 0.0615); weight 1.0 gives 7.078 (val 0.0703). The model does become reversible (reversal
+MSE 1.3e-3 and 2.6e-4 by epoch 50), but that constrains the forecast rather than improving it.
+Not adopted. A4 (overwrite anchoring) on springs-interp, seed 1991: 5.90e-5 vs 3.51e-5 for the
+full model (x1e-2), +68%. That supports the anchoring contribution. The interpolation ablation
+queue resumed.
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)
