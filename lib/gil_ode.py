@@ -133,8 +133,21 @@ class GILODEFunc(nn.Module):
     only where their output feeds into (v's derivative only, not q's) has changed.
     '''
 
-    def __init__(self, hidden_dim, mlp_width=None, adapter_width=120, adapter_gate_width=32):
+    def __init__(self, hidden_dim, mlp_width=None, adapter_width=120, adapter_gate_width=32,
+                 geo_dim=0, moe_k=1):
         super(GILODEFunc, self).__init__()
+        # Part 33 screens (all off in reported models):
+        #   geo_dim > 0: geometry-aware messages. Pairwise differences of the DECODED states,
+        #     dy = D(h_j) - D(h_i) (observation space), with |dy|^2, 1/(|dy|^2 + eps) and the
+        #     inverse-square vector dy / (|dy|^2 + eps)^{3/2}, are appended to the message input.
+        #     Pairwise physical laws act on distances (EGNN's key ingredient), which tanh MLPs on
+        #     latent differences otherwise have to learn from scratch.
+        #   moe_k > 1: the interaction term is a mixture of moe_k experts with a per-agent softmax
+        #     gate on the state (after PGODE's prototype decomposition).
+        self.geo_dim = geo_dim
+        self.moe_k = moe_k
+        self._W_dec = None
+        self._b_dec = None
         # MLP width is decoupled from the ODE state dimension: a rollout state that is too wide
         # drifts over a long uncorrected forecast (measured: springs-extrap 3.391 at state 152 vs
         # 2.389 at state 80), but the vector field still needs capacity. So extra parameters go
@@ -152,8 +165,9 @@ class GILODEFunc(nn.Module):
         # again while still paying the constraint's cost (f_self/f_interaction halved to v_dim).
         # dq/dt = v exactly, so the constraint actually binds. See CHANGES.md.
         # Relation-expert messages, including the pairwise difference (h_j - h_i).
-        self.phi_pos = utils.create_net(hidden_dim * 3, hidden_dim, n_layers=2, n_units=w, nonlinear=nn.Tanh)
-        self.phi_neg = utils.create_net(hidden_dim * 3, hidden_dim, n_layers=2, n_units=w, nonlinear=nn.Tanh)
+        geo_in = 2 * geo_dim + 2 if geo_dim > 0 else 0
+        self.phi_pos = utils.create_net(hidden_dim * 3 + geo_in, hidden_dim, n_layers=2, n_units=w, nonlinear=nn.Tanh)
+        self.phi_neg = utils.create_net(hidden_dim * 3 + geo_in, hidden_dim, n_layers=2, n_units=w, nonlinear=nn.Tanh)
         # Antisymmetric force channel: f_ij = chi(h_i, h_j) - chi(h_j, h_i), which satisfies
         # f_ij = -f_ji identically by construction -- Newton's third law, which nothing in the
         # relation-expert messages above enforces (they compute i<-j and j<-i independently).
@@ -168,6 +182,13 @@ class GILODEFunc(nn.Module):
         self.psi = utils.create_net(hidden_dim * 3 + 1, hidden_dim, n_layers=1, n_units=w, nonlinear=nn.Tanh)
         # f_interaction(h_i, m_i) -- the gated term added to dv/dt only.
         self.f_interaction = utils.create_net(hidden_dim * 2, self.v_dim, n_layers=1, n_units=w, nonlinear=nn.Tanh)
+        if moe_k > 1:
+            self.f_experts = nn.ModuleList([utils.create_net(hidden_dim * 2, self.v_dim, n_layers=1, n_units=w,
+                                                             nonlinear=nn.Tanh) for _ in range(moe_k - 1)])
+            for e in self.f_experts:
+                utils.init_network_weights(e)
+            self.moe_gate = nn.Linear(hidden_dim, moe_k)
+            nn.init.zeros_(self.moe_gate.weight); nn.init.zeros_(self.moe_gate.bias)   # uniform start
         # State-dependent gate: sigmoid(a_theta([h_i, m_i, log(1+deg_i)]) + b0), b0 chosen so the
         # gate starts near 0.1 -- same warm-start rationale as the scalar alpha it replaces
         # (a hard-zero start left no gradient incentive to grow under long horizons).
@@ -258,6 +279,9 @@ class GILODEFunc(nn.Module):
         self.S = S  # [B, N, N]
         self.c = c  # [B, N, N]
 
+    def set_decoder(self, W, b):
+        self._W_dec, self._b_dec = W, b
+
     def set_null_projector(self, P_row):
         '''Row-space projector P = K W, so h - h P is the decoder-null component the guard acts
         on. Set per forward from the current decoder, since W is still training.'''
@@ -280,6 +304,12 @@ class GILODEFunc(nn.Module):
         h_i = h.unsqueeze(2).expand(B, N, N, H)
         h_j = h.unsqueeze(1).expand(B, N, N, H)
         edge_in = torch.cat([h_i, h_j, h_j - h_i], dim=-1)
+        if self.geo_dim > 0:
+            y = h @ self._W_dec.transpose(0, 1) + self._b_dec            # [B, N, D] decoded states
+            dy = y.unsqueeze(1) - y.unsqueeze(2)                         # [B, N(i), N(j), D] = y_j - y_i
+            d2 = dy.pow(2).sum(-1, keepdim=True)
+            inv = 1.0 / (d2 + 1e-2)
+            edge_in = torch.cat([edge_in, dy, dy * inv.pow(1.5), d2, inv], dim=-1)
 
         is_pos = (self.c > 0).unsqueeze(-1)
         msg = torch.where(is_pos, self.phi_pos(edge_in), self.phi_neg(edge_in))  # [B, N, N, H]
@@ -302,7 +332,12 @@ class GILODEFunc(nn.Module):
 
         gate_in = torch.cat([h, m_tilde, log_deg], dim=-1)
         g = torch.sigmoid(self.gate_net(gate_in))  # [B, N, 1]
-        interaction = self.f_interaction(torch.cat([h, m_tilde], dim=-1))  # [B, N, v_dim]
+        int_in = torch.cat([h, m_tilde], dim=-1)
+        interaction = self.f_interaction(int_in)  # [B, N, v_dim]
+        if self.moe_k > 1:
+            wts = torch.softmax(self.moe_gate(h), dim=-1)                 # [B, N, K]
+            outs = torch.stack([interaction] + [e(int_in) for e in self.f_experts], dim=-1)
+            interaction = (outs * wts.unsqueeze(-2)).sum(-1)
 
         dq = v  # [B, N, q_dim] -- hard, binding: q's derivative IS v, no escape hatch
         dv = self.f_self(h) + g * interaction  # [B, N, v_dim]
@@ -393,8 +428,10 @@ class GILODEModel(nn.Module):
     def __init__(self, input_dim, hidden_dim, num_atoms, device, mlp_width=None, ode_substeps=1, ode_tol=None, ode_max_depth=6,
                  use_forecast_adapter=False, forecast_adapter_rank=4, use_smoother=False,
                  smoother_mode='full', ablate=(), use_reversion=False, n_particles=1,
-                 reversal_ext=0.0):
+                 reversal_ext=0.0, geo_msg=False, moe_k=1, ctx_init=False):
         super(GILODEModel, self).__init__()
+        self.geo_msg = geo_msg
+        self.ctx_init = ctx_init
         # Time-reversal consistency (CHANGES.md Part 32; after TANGO, Huang et al. 2023). Set by the
         # training wrapper (self.reversal_active) in extrapolation training only. From the state at
         # the last observation, the forecast is rolled forward to the end of the labelled horizon
@@ -461,7 +498,20 @@ class GILODEModel(nn.Module):
             self.fa_U.weight.zero_()
 
         self.decoder = nn.Linear(hidden_dim, input_dim)
-        self.ode_func = GILODEFunc(hidden_dim, mlp_width=mlp_width)
+        self.ode_func = GILODEFunc(hidden_dim, mlp_width=mlp_width,
+                                   geo_dim=input_dim if geo_msg else 0, moe_k=moe_k)
+        if ctx_init:
+            # Context encoder for the forecast start (Part 33): at the last observation, attention
+            # over each agent's anchored history (keys carry the time offset), combined with the
+            # graph mean, gives a correction projected onto the decoder NULL space -- the
+            # decoded state at the last observation stays exactly anchored. Output layer zeroed,
+            # so it starts as an exact no-op.
+            a = 64
+            self.ctx_q = nn.Linear(hidden_dim, a)
+            self.ctx_k = nn.Linear(hidden_dim + 2, a)
+            self.ctx_v = nn.Linear(hidden_dim + 2, a)
+            self.ctx_out = nn.Sequential(nn.Linear(2 * a + hidden_dim, 128), nn.Tanh(), nn.Linear(128, hidden_dim))
+            nn.init.zeros_(self.ctx_out[-1].weight); nn.init.zeros_(self.ctx_out[-1].bias)
         # Stability-guard calibration state (see forward / finalize_guard_radius).
         self.calibrating = False
         self._calib_n = 0
@@ -626,6 +676,21 @@ class GILODEModel(nn.Module):
         eye = torch.eye(G.shape[0], device=W.device, dtype=W.dtype)
         return torch.linalg.solve(G + ANCHOR_RTOL * scale * eye, W).transpose(0, 1)  # [H, D]
 
+    def _ctx_correction(self, h, hist, hist_mask, times, P_row):
+        '''hist: [B, N, i, H] earlier grid states; hist_mask: [B, N, i] observed there. The current
+        state h (at the last observation) is always a key.'''
+        B, N, H = h.shape
+        keys = torch.cat([hist, h.unsqueeze(2)], dim=2)                               # [B, N, i+1, H]
+        m = torch.cat([hist_mask, torch.ones(B, N, 1, dtype=torch.bool, device=h.device)], dim=2)
+        dt = (times[-1] - times).view(1, 1, -1, 1).expand(B, N, -1, 1)
+        kin = torch.cat([keys, dt, torch.log1p(dt)], dim=-1)
+        q = self.ctx_q(h).unsqueeze(2)                                                   # [B, N, 1, a]
+        att = (q * self.ctx_k(kin)).sum(-1) / (q.shape[-1] ** 0.5)                      # [B, N, i+1]
+        att = att.masked_fill(~m, float('-inf')).softmax(-1)
+        ctx = (att.unsqueeze(-1) * self.ctx_v(kin)).sum(2)                               # [B, N, a]
+        d = self.ctx_out(torch.cat([ctx, ctx.mean(1, keepdim=True).expand(-1, N, -1), h], -1))
+        return d - d @ P_row                                                             # null space only
+
     def _reverse(self, h):
         q = self.ode_func.q_dim
         return torch.cat([h[..., :q], -h[..., q:]], dim=-1)
@@ -723,13 +788,15 @@ class GILODEModel(nn.Module):
         K = self.anchor_gain()  # [H, D] -- W is fixed within a forward pass, so compute it once
         P_row = K @ self.decoder.weight                            # [H, H] row-space projector
         self.ode_func.set_null_projector(P_row)                    # for the stability guard
+        if self.geo_msg:
+            self.ode_func.set_decoder(self.decoder.weight, self.decoder.bias)
         self._diag_corr_max = 0.0
 
         # Forecast-transition adapter: applied ONCE, at the last observation, to convert the
         # filtering state into a forecasting state. See fa_U / fa_V in __init__. Only the index is
         # needed here; the adapter itself is applied inside the loop.
         last_obs_idx = -1
-        if self.use_forecast_adapter:
+        if self.use_forecast_adapter or self.ctx_init:
             nz = obs_mask.any(dim=1).any(dim=0).nonzero()
             if nz.numel() > 0:
                 last_obs_idx = int(nz.max().item())
@@ -840,6 +907,9 @@ class GILODEModel(nn.Module):
             # reorganize the hidden information the rollout will use. U is zero-initialized, so it
             # is a bit-exact no-op until trained -- checkpoints without these parameters (every
             # existing run, including the five winning cells) behave exactly as before.
+            if self.ctx_init and i == last_obs_idx:
+                h = h + self._ctx_correction(h, outputs[:, :, :i], obs_mask[:, :, :i], grid_times[:i + 1], P_row)
+
             if self.use_forecast_adapter and i == last_obs_idx:
                 d = self.fa_U(torch.tanh(self.fa_V(h)))            # [B, N, H]
                 h = h + d - d @ P_row                              # d projected onto null(W)

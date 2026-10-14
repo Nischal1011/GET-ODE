@@ -1822,6 +1822,26 @@ Not adopted. A4 (overwrite anchoring) on springs-interp, seed 1991: 5.90e-5 vs 3
 full model (x1e-2), +68%. That supports the anchoring contribution. The interpolation ablation
 queue resumed.
 
+
+## Part 33 — Top-3 screen for charged-extrap (literature-guided)
+
+What GIL-ODE does well: anchoring (A4 +68%), the smoother, lifting on IEEE39, and the best
+first-fifth forecast on every dataset. What fails: on charged, forecast error grows faster than
+LG-ODE's from about step 10. Candidates, ranked by likelihood:
+1. `--geo-msg`, geometry-aware messages. Decoded pairwise differences dy, |dy|^2, 1/(|dy|^2+eps)
+   and dy/(|dy|^2+eps)^1.5 are appended to the relation-expert input (EGNN: distances drive
+   N-body message passing). Generic: computed through the decoder, with no dataset knowledge.
+2. `--ctx-init`, a context encoder at the forecast start. Attention over each agent's anchored
+   history, plus the graph mean, gives a null-space correction at the last observation (Latent
+   ODE / LG-ODE: whole-context initial states extrapolate better). Exact no-op at init.
+3. `--moe 4`, a mixture of interaction experts with per-agent softmax gates (PGODE). 357K
+   parameters, comparable to CSG-ODE's 358K.
+
+**Screen** (`run_logs/screen33.sh`): charged-extrap seed 1991, 15 epochs, on the Part 29 config;
+reference = the same config with no new flag at the same budget. Pass = best validation MSE at
+least 4% below the reference. Passing ideas get 50-epoch runs on 3 seeds. The interpolation
+ablation queue is paused again.
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)

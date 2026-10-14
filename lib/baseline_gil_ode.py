@@ -74,7 +74,8 @@ class GILODEBaseline(VAE_Baseline):
                  mlp_width=None, ode_substeps=1, ode_tol=None, use_forecast_adapter=False,
                  free_run=False, free_run_weight=FREE_RUN_WEIGHT, use_smoother=False,
                  smoother_mode='full', ablate=(), horizon_loss='prefix', use_reversion=False,
-                 n_particles=1, debias=False, reversal_weight=0.0, reversal_ext=0.0):
+                 n_particles=1, debias=False, reversal_weight=0.0, reversal_ext=0.0,
+                 geo_msg=False, moe_k=1, ctx_init=False):
         super(GILODEBaseline, self).__init__(
             input_dim=input_dim, latent_dim=hidden_dim, z0_prior=None, device=device, obsrv_std=obsrv_std)
         self.num_atoms = num_atoms
@@ -97,7 +98,7 @@ class GILODEBaseline(VAE_Baseline):
                                 use_forecast_adapter=use_forecast_adapter,
                                 use_smoother=use_smoother, smoother_mode=smoother_mode,
                                 ablate=ablate, use_reversion=use_reversion, n_particles=n_particles,
-                                reversal_ext=reversal_ext)
+                                reversal_ext=reversal_ext, geo_msg=geo_msg, moe_k=moe_k, ctx_init=ctx_init)
         self.reversal_weight = reversal_weight
         self.null_prior_weight = 0.0 if 'no_null_prior' in ablate else NULL_PRIOR_WEIGHT
 

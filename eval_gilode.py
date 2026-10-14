@@ -82,7 +82,9 @@ model = GILODEBaseline(input_dim=dataloader.feature, hidden_dim=args.hidden_dim,
                        smoother_mode=getattr(args, 'smoother_mode', 'coldstart'),
                        ablate=tuple(a for a in getattr(args, 'ablate', '').split(',') if a),
                        use_reversion=getattr(args, 'reversion', False),
-                       n_particles=cli.particles or getattr(args, 'particles', 1)).to(device)
+                       n_particles=cli.particles or getattr(args, 'particles', 1),
+                       geo_msg=getattr(args, 'geo_msg', False), moe_k=getattr(args, 'moe', 1),
+                       ctx_init=getattr(args, 'ctx_init', False)).to(device)
 model.load_state_dict(ck['state_dict'], strict=False)
 model.eval()
 core = model.core

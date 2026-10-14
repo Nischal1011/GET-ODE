@@ -52,6 +52,9 @@ parser.add_argument('--reversal-weight', type=float, default=0.0,
                     help='time-reversal consistency weight (extrap training only; CHANGES.md Part 32)')
 parser.add_argument('--reversal-ext', type=float, default=0.0,
                     help='extend the reversal rollout this many labelled-horizon lengths past the labels (unlabelled)')
+parser.add_argument('--geo-msg', action='store_true', help='geometry-aware messages (Part 33)')
+parser.add_argument('--moe', type=int, default=1, help='mixture of K interaction experts (Part 33)')
+parser.add_argument('--ctx-init', action='store_true', help='context encoder at the forecast start (Part 33)')
 parser.add_argument('--ablate', type=str, default='',
                     help='comma-separated ablations (lib/gil_ode.py): no_lift, overwrite, no_gate, complete, '
                          'no_residual, no_guard, no_antisym, no_null_prior')
@@ -177,7 +180,8 @@ if __name__ == '__main__':
                            ablate=tuple(a for a in args.ablate.split(',') if a),
                            horizon_loss=args.horizon_loss, use_reversion=args.reversion,
                            n_particles=args.particles, debias=args.debias,
-                           reversal_weight=args.reversal_weight, reversal_ext=args.reversal_ext).to(device)
+                           reversal_weight=args.reversal_weight, reversal_ext=args.reversal_ext,
+                           geo_msg=args.geo_msg, moe_k=args.moe, ctx_init=args.ctx_init).to(device)
 
     if args.load is not None:
         ckpt_path = os.path.join(args.save, args.load)
