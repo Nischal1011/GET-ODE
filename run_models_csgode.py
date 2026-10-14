@@ -59,6 +59,7 @@ parser.add_argument('--cutting_edge', type=bool, default=True)
 parser.add_argument('--extrap_num', type=int, default=40)
 parser.add_argument('--rec_attention', type=str, default="attention")
 parser.add_argument('--alias', type=str, default="run")
+parser.add_argument('--align-time', action='store_true', help='consistent context/forecast clock in train-pool extrap windows (CHANGES.md Part 31)')
 parser.add_argument('--dataset-dir', type=str, default=None)
 parser.add_argument('--csg-solver', type=str, default='euler', choices=['euler','rk4'], help="CSG-ODE decoder solver: 'euler' (paper Table 8) or 'rk4' (LG-ODE's solver here)")
 

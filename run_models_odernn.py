@@ -37,6 +37,7 @@ parser.add_argument('--clip', type=float, default=10)
 parser.add_argument('--cutting_edge', type=bool, default=True)
 parser.add_argument('--extrap_num', type=int, default=40)
 parser.add_argument('--alias', type=str, default="run")
+parser.add_argument('--align-time', action='store_true', help='consistent context/forecast clock in train-pool extrap windows (CHANGES.md Part 31)')
 parser.add_argument('--dataset-dir', type=str, default=None)
 
 args = parser.parse_args()

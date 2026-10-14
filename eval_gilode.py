@@ -34,7 +34,7 @@ from lib.gil_dataset import prepare_gil_batch
 
 p = argparse.ArgumentParser('GIL-ODE evaluation')
 p.add_argument('--ckpt', required=True)
-p.add_argument('--split', default='test', choices=['test', 'val'])
+p.add_argument('--split', default='test', choices=['test', 'val', 'train'])
 p.add_argument('--causal', action='store_true')
 p.add_argument('--decode-prior', action='store_true', help='predict each target from the state before its own observation is applied')
 p.add_argument('--drop-agents', type=int, default=0)
@@ -47,6 +47,9 @@ p.add_argument('--dump', default=None)
 p.add_argument('--dump-batches', type=int, default=1)
 p.add_argument('--out', default=None, help='append the JSON result line to this file')
 p.add_argument('--tag', default='')
+p.add_argument('--context-shift', type=float, default=0.0,
+               help='diagnostic: add this to every context observation time (e.g. -0.5 reproduces the '
+                    'train-time gap of the springs/charged extrapolation loader)')
 p.add_argument('--particles', type=int, default=None, help='override the ensemble size at test time')
 p.add_argument('--batch-size', type=int, default=None, help='override the eval batch size (memory)')
 cli = p.parse_args()
@@ -169,6 +172,8 @@ with torch.no_grad():
         b_en = utils.get_next_batch_new(enc, device)
         b_gr = utils.get_next_batch_new(graph, device)
         b_de = utils.get_next_batch(dec, device)
+        if cli.context_shift:
+            b_en.pos = b_en.pos + cli.context_shift
         dense, mask, grid_times, S, c = prepare_gil_batch(b_en, b_de, b_gr, N, args.data, device)
         B = dense.shape[0]
 
@@ -228,7 +233,7 @@ tot['overlap'] = float(np.mean(tot.get('overlap', [0])))
 split = {k: float(np.nanmean(tot[k])) for k in ('mse_seen', 'mse_unseen') if k in tot}
 res = {'tag': cli.tag, 'target_obs_overlap': tot['overlap'], 'ckpt': os.path.basename(cli.ckpt), 'data': args.data, 'mode': args.mode,
        'seed': args.random_seed, 'split': cli.split, 'causal': cli.causal, 'drop_agents': cli.drop_agents,
-       'knockout_lift': cli.knockout_lift, 'graph': cli.graph, 'decode_prior': cli.decode_prior,
+       'knockout_lift': cli.knockout_lift, 'graph': cli.graph, 'context_shift': cli.context_shift, 'decode_prior': cli.decode_prior,
        'mse_full': tot['mse_full'] / n_batches, 'mse_check': tot['mse_check'] / n_batches,
        'mse_prefix': tot['mse_prefix'] / n_batches,
        **split, 'particles': core.n_particles,

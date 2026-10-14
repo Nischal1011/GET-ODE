@@ -138,6 +138,18 @@ class CorrectedParseData(ParseData):
 
         series_list_observed, loc_observed, vel_observed, times_observed = self.split_data(loc_en, vel_en, times_en)
         time_begin = 0 if self.mode == "interp" else 1
+        # Time-alignment fix (CHANGES.md Part 31, opt-in via args.align_time so every reported run
+        # stays reproducible). In extrapolation the TRAIN/VAL-pool windows are split at
+        # total_step//2: context times t/total_step lie in [0, 0.5) and forecast times are re-based
+        # to start at 0. Shifting the context by -1 (time_begin) then leaves a phantom gap of ~0.5
+        # (31 steps with no data) between the end of the context and the forecast, although
+        # physically the forecast starts one step later. Test windows have no gap (context
+        # [0, 1) - 1). A model that integrates along the time axis (GIL-ODE, ODE-RNN) is trained
+        # on a clock that does not match test. Shifting train-pool contexts by -0.5 instead
+        # makes the clock consistent: context [-0.5, 0), forecast [0, 0.5).
+        if (self.mode == "extrap" and effective_type == "train"
+                and getattr(self.args, 'align_time', False)):
+            time_begin = (self.total_step // 2) / self.total_step
         encoder_data_loader, graph_data_loader = self.transfer_data(loc_observed, vel_observed, edges,
                                                                      times_observed, time_begin=time_begin)
 

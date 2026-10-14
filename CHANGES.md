@@ -1726,6 +1726,49 @@ overstated it, because a model trained without lifting compensates elsewhere.
 Queued (`run_logs/interp_ablation_queue.sh`, seed 1991): A4 overwrite anchoring and T5 core-only
 on the three interpolation cells. The interpolation configuration is unchanged by Parts 29-30.
 
+
+## Part 31 — Root-cause analysis of charged-extrap; a train/test clock inconsistency in the loader
+
+**Two hypotheses ruled out** (evaluation only, charged-extrap, x1e-2):
+- *Estimator variance.* Averaging three seeds removes 16% of GIL-ODE's error (6.240 -> 5.224)
+  and 19% of LG-ODE's (5.260 -> 4.254). The seed-disagreement share is the same for both models,
+  so ensembling or probabilistic averaging cannot close the gap. This explains the plateau in
+  Part 30.
+- *Capacity or fit.* On training-pool windows GIL-ODE fits better than LG-ODE (1.12 vs 1.24 and
+  1.34; probabilistic GIL-ODE 1.10), yet it is worse on test (5.94 vs 5.02). GIL-ODE transfers
+  worse from the training task to the test task.
+
+**The training task differs from the test task in its clock.** For springs and charged, the
+train/val pool holds single 60-step windows, split at total_step//2: context times t/60 in
+[0, 0.5), forecast times re-based to start at 0. The encoder then shifts the context by -1, so on
+the model's clock the context ends at -0.517 and the forecast starts at 0. That is a phantom gap
+of 31 steps with no data, although physically the forecast begins one step after the context.
+Test windows (context [0, 1) - 1) have no such gap. Measured on real batches:
+
+| | context ends | forecast starts | gap |
+|---|---|---|---|
+| springs/charged, train | -0.517 | 0 | **0.517** |
+| springs/charged, val and test | -0.017 | 0 | 0.017 |
+| IEEE39, all splits | -0.010 | 0 | 0.010 |
+
+Models that encode an initial state for the forecast (LG-ODE's z0) never integrate across the
+gap. Continuous-time filters (GIL-ODE, ODE-RNN) do, so they are trained on a clock that does not
+match test. IEEE39, whose loader has no gap, is GIL-ODE's cleanest extrapolation win.
+Re-inserting the gap at test time makes the trained model worse (5.94 -> 11.26), so the model is
+not tuned to the gap. Whether training on a consistent clock helps can only be settled by
+retraining.
+
+**Fix** (opt-in `--align-time` on every runner, so reported runs remain reproducible):
+train-pool extrapolation contexts are shifted by -0.5 instead of -1. Context [-0.5, 0) and
+forecast [0, 0.5) then share one consistent clock (verified: train gap 0.017, the same as test).
+This is a data-protocol change, so it applies to every model or to none.
+
+**Decisive test** (`run_logs/align_queue.sh`): GIL-ODE (reversion head + full-horizon loss;
+without the fix, seed 1991 scored 6.026) and Corrected LG-ODE (5.522 at seed 1991), both with
+`--align-time`, seed 1991. If GIL-ODE improves and LG-ODE does not, every model is rerun with the
+fix on springs and charged extrapolation (IEEE39 is unaffected). A4 on charged-interp was paused
+about 3 h into its run to free the slot.
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)

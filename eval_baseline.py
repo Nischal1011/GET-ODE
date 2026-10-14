@@ -23,6 +23,8 @@ p.add_argument('--script', required=True)
 p.add_argument('--ckpt', required=True)
 p.add_argument('--model', required=True, help='display name, e.g. LG-ODE')
 p.add_argument('--out', default=None)
+p.add_argument('--split', default='test', choices=['test', 'val', 'train'])
+p.add_argument('--dump', default=None, help='save every batch\'s (pred, truth, mask) to this .npz')
 cli = p.parse_args()
 
 src = open(cli.script).read()
@@ -45,10 +47,11 @@ for k, v in vars(ns['parser'].parse_args([])).items():
 ns['args'] = ck_args
 exec(compile(body, cli.script, 'exec'), ns)        # builds data, model and loads the checkpoint
 model, device = ns['model'], ns['device']
-test_encoder, test_graph, test_decoder, test_batch = (ns['test_encoder'], ns['test_graph'],
-                                                     ns['test_decoder'], ns['test_batch'])
+sp = cli.split
+test_encoder, test_graph, test_decoder, test_batch = (ns[f'{sp}_encoder'], ns[f'{sp}_graph'],
+                                                     ns[f'{sp}_decoder'], ns[f'{sp}_batch'])
 
-acc = {'se': None, 'cnt': None, 'seen': [], 'unseen': []}
+acc = {'se': None, 'cnt': None, 'seen': [], 'unseen': [], 'dump': []}
 _orig = model.get_mse
 
 # Remember the current batch, so get_mse can tell which targets were also conditioning inputs
@@ -80,6 +83,8 @@ def get_mse_hook(truth, pred_y, mask=None):
         cnt = mask.sum(dim=(0, 2)).cpu().numpy()
         acc['se'] = se if acc['se'] is None else acc['se'] + se
         acc['cnt'] = cnt if acc['cnt'] is None else acc['cnt'] + cnt
+        if cli.dump:
+            acc['dump'].append((pred_y[0].cpu().numpy(), truth.cpu().numpy(), mask.cpu().numpy()))
         en, tq = _cur['enc'], _cur['dec']['time_steps']
         _, omask, grid = build_dense_grid(en.x, en.pos, en.y, tq, truth.device)
         seen = omask[:, torch.searchsorted(grid, tq)].unsqueeze(-1)          # [M, T_Q, 1]
@@ -93,10 +98,14 @@ model.eval()
 res = utils.compute_loss_all_batches(model, test_encoder, test_graph, test_decoder, n_batches=test_batch,
                                      device=device, n_traj_samples=1, kl_coef=0.)
 out = {'model': cli.model, 'ckpt': os.path.basename(cli.ckpt), 'data': ck_args.data, 'mode': ck_args.mode,
-       'seed': ck_args.random_seed, 'mse_full': res['mse'],
+       'seed': ck_args.random_seed, 'split': sp, 'mse_full': res['mse'],
        'mse_seen': float(np.nanmean(acc['seen'])), 'mse_unseen': float(np.nanmean(acc['unseen'])),
        'mse_step': (acc['se'] / np.maximum(acc['cnt'], 1)).tolist()}
 print('RESULT ' + json.dumps({k: v for k, v in out.items() if k != 'mse_step'}))
 if cli.out:
     with open(cli.out, 'a') as f:
         f.write(json.dumps(out) + '\n')
+if cli.dump:
+    np.savez_compressed(cli.dump, pred=np.concatenate([d[0] for d in acc['dump']]),
+                        truth=np.concatenate([d[1] for d in acc['dump']]),
+                        tmask=np.concatenate([d[2] for d in acc['dump']]))
