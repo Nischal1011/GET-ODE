@@ -1769,6 +1769,17 @@ without the fix, seed 1991 scored 6.026) and Corrected LG-ODE (5.522 at seed 199
 fix on springs and charged extrapolation (IEEE39 is unaffected). A4 on charged-interp was paused
 about 3 h into its run to free the slot.
 
+
+### 31.1 Result: the clock fix does not help GIL-ODE (hypothesis rejected)
+
+Charged-extrap, seed 1991, `--align-time`: GIL-ODE 6.421 (6.026 without the fix, worse) and
+LG-ODE 5.385 (5.522 without the fix, slightly better). Validation agrees. A likely reading: with
+the phantom gap, every training example integrates about 1.0 time units (gap + forecast), which
+matches the test forecast length (0.983). Without it, training only integrates 0.5. The
+inconsistency acted as an accidental long-horizon curriculum for the continuous-time model. The
+flag stays opt-in and unused; no reported number uses it. The interpolation ablations resumed
+(`run_logs/interp_ablation_queue2.sh`).
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)
