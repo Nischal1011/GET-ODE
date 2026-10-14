@@ -1705,6 +1705,27 @@ penalises the Monte Carlo term and outweighs the CRPS term, so training shrinks 
 Fix (`--debias`): subtract the unbiased estimate s^2 / K, giving an unbiased estimate of the
 infinite-ensemble error. Running charged x3 (`run_logs/probdb_queue.sh`).
 
+
+### 30.2 Debiased loss: no gain on charged; A1 on IEEE39
+
+Debiased v1, charged-extrap test MSE (x1e-2): 5.543 / 5.700 / 5.756, mean 5.666 (v1 5.673,
+LG-ODE 5.235). Still a loss. The diffusion still drifts down (0.048 -> 0.036), only more slowly.
+Removing the Monte Carlo penalty was not enough to produce a calibrated spread with a
+state-independent diagonal diffusion.
+
+A1 (no lifting, retrained), IEEE39, full GIL-ODE config (prefix loss), x1e-2, seeds 1991/1992/1993:
+- extrap: 7.348 / 7.739 / 7.469 vs full 6.939 / 7.166 / 7.004. Worse on every seed, +7% on the mean.
+- interp: 0.481 / 0.545 / 0.521 vs full 0.532 / 0.520 / 0.501. Means are equal, so there is no
+  effect. Seed 1992 diverged at epoch 41: a gradient spike of 1.9e5 at epoch 38, then a singular
+  anchor solve. It is reported from its best-validation checkpoint (epoch 39), which is valid
+  under validation selection.
+
+So retrained lifting matters only for IEEE39 forecasting. The test-time knockout (+9% on interp)
+overstated it, because a model trained without lifting compensates elsewhere.
+
+Queued (`run_logs/interp_ablation_queue.sh`, seed 1991): A4 overwrite anchoring and T5 core-only
+on the three interpolation cells. The interpolation configuration is unchanged by Parts 29-30.
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)
