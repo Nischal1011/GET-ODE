@@ -1842,6 +1842,14 @@ reference = the same config with no new flag at the same budget. Pass = best val
 least 4% below the reference. Passing ideas get 50-epoch runs on 3 seeds. The interpolation
 ablation queue is paused again.
 
+
+### 33.1 Screen result: the MoE passes; geometry and context encoder fail
+
+Best validation MSE at 15 epochs (charged seed 1991): reference 0.0652; `--moe 4` **0.0596
+(-8.7%)**, still falling at epoch 15 (its 15-epoch value already equals the reference config's
+50-epoch best of 0.0597); `--geo-msg` 0.0671 (+2.8%); `--ctx-init` 0.0681 (+4.4%). Only the MoE
+moves on to full runs (`run_logs/moe_full.sh`: 50 epochs, 3 seeds in parallel).
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)
