@@ -1859,6 +1859,17 @@ seed-1991 pair against LG-ODE and loses the other two; the mean gap is 13% -> 5%
 largest single gain so far. Next: MoE + probabilistic ensemble (`--particles 8`, which gave
 -6.6% over the matching deterministic config in Part 30), 3 seeds (`run_logs/moeprob_full.sh`).
 
+
+### 33.3 MoE + probabilistic: crash, cause, rerun
+
+All three parallel charged runs died together at epoch 6-7 (10-15 ~11:52) with CUDA driver errors
+(unknown error / illegal memory access). An unrelated GPU job (`run_gsm8k.py`, ~20 GB, not part
+of this project) started at that moment. The auto-follow-up (`moeprob_rest.sh`) then launched the
+springs runs anyway, because it waited for a completion marker without checking the exit status.
+Those runs were stopped. Rerun one job at a time (`run_logs/moeprob_seq.sh`), each launch gated on
+>= 6 GB free GPU memory and >= 6 GB free RAM. Follow-up queues must check `exit=0`, not just
+completion.
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)
