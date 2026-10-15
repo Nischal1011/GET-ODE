@@ -1850,6 +1850,15 @@ Best validation MSE at 15 epochs (charged seed 1991): reference 0.0652; `--moe 4
 50-epoch best of 0.0597); `--geo-msg` 0.0671 (+2.8%); `--ctx-init` 0.0681 (+4.4%). Only the MoE
 moves on to full runs (`run_logs/moe_full.sh`: 50 epochs, 3 seeds in parallel).
 
+
+### 33.2 MoE full result; MoE + probabilistic launched
+
+`--moe 4` on the Part 29 config, charged-extrap test (x1e-2): 5.232 / 5.943 / 5.330, mean 5.501
+(the Part 29 config without MoE: 5.897; LG-ODE 5.522 / 5.176 / 5.006, mean 5.235). It wins the
+seed-1991 pair against LG-ODE and loses the other two; the mean gap is 13% -> 5%. This is the
+largest single gain so far. Next: MoE + probabilistic ensemble (`--particles 8`, which gave
+-6.6% over the matching deterministic config in Part 30), 3 seeds (`run_logs/moeprob_full.sh`).
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)
