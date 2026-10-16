@@ -1870,6 +1870,14 @@ Those runs were stopped. Rerun one job at a time (`run_logs/moeprob_seq.sh`), ea
 >= 6 GB free GPU memory and >= 6 GB free RAM. Follow-up queues must check `exit=0`, not just
 completion.
 
+
+### 33.4 MoE + probabilistic: no further gain
+
+Charged-extrap test (x1e-2): 5.289 / 5.748 / 5.453, mean 5.497, versus MoE alone 5.232 / 5.943 /
+5.330 (mean 5.501). Validation also ties (0.0542 vs 0.0544). LG-ODE: 5.235. GIL-ODE wins 1 of 3
+seed pairs (seed 1991). The probabilistic layer adds nothing on top of the MoE, so the simpler
+MoE-only config is preferred. Charged-extrap remains about 5% behind LG-ODE on the mean.
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)
