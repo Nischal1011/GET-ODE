@@ -55,6 +55,11 @@ parser.add_argument('--reversal-ext', type=float, default=0.0,
 parser.add_argument('--geo-msg', action='store_true', help='geometry-aware messages (Part 33)')
 parser.add_argument('--moe', type=int, default=1, help='mixture of K interaction experts (Part 33)')
 parser.add_argument('--ctx-init', action='store_true', help='context encoder at the forecast start (Part 33)')
+parser.add_argument('--moe-temp', type=float, default=1.0)
+parser.add_argument('--moe-route', action='store_true', help='routed MoE: non-zero gate init + load-balance/entropy loss')
+parser.add_argument('--route-weight', type=float, default=0.0)
+parser.add_argument('--moe-msg', type=int, default=1, help='edge-level message experts (Part 34)')
+parser.add_argument('--int-width', type=int, default=None, help='interaction-network width (parameter-matched control)')
 parser.add_argument('--ablate', type=str, default='',
                     help='comma-separated ablations (lib/gil_ode.py): no_lift, overwrite, no_gate, complete, '
                          'no_residual, no_guard, no_antisym, no_null_prior')
@@ -181,7 +186,9 @@ if __name__ == '__main__':
                            horizon_loss=args.horizon_loss, use_reversion=args.reversion,
                            n_particles=args.particles, debias=args.debias,
                            reversal_weight=args.reversal_weight, reversal_ext=args.reversal_ext,
-                           geo_msg=args.geo_msg, moe_k=args.moe, ctx_init=args.ctx_init).to(device)
+                           geo_msg=args.geo_msg, moe_k=args.moe, ctx_init=args.ctx_init,
+                           moe_temp=args.moe_temp, moe_route=args.moe_route, moe_msg=args.moe_msg,
+                           int_width=args.int_width, route_weight=args.route_weight).to(device)
 
     if args.load is not None:
         ckpt_path = os.path.join(args.save, args.load)

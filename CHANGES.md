@@ -1878,6 +1878,25 @@ Charged-extrap test (x1e-2): 5.289 / 5.748 / 5.453, mean 5.497, versus MoE alone
 seed pairs (seed 1991). The probabilistic layer adds nothing on top of the MoE, so the simpler
 MoE-only config is preferred. Charged-extrap remains about 5% behind LG-ODE on the mean.
 
+
+## Part 34 — Why the MoE helps, and MoE refinements
+
+**Diagnosis:** the trained MoE-4 gates are uniform. Per-sample gate entropy is 1.382 / 1.384 /
+1.385 against a uniform 1.386, mean expert weights are 0.23-0.28, and no sample puts more than 0.6
+on one expert. The experts never specialise; the gain (5.90 -> 5.50) comes from averaging four
+independent interaction networks inside the vector field. This matches the literature: plain
+gradient-trained gates fail to route in dynamical systems (MixER 2025).
+
+**Screen** (`run_logs/screen34.sh`; 15 epochs, charged seed 1991, Part 29 config; pass if val
+<= 0.0566, i.e. 5% better than MoE-4's 0.0596):
+1. `--moe 8`: more averaging (465K params).
+2. Routed MoE: `--moe 4 --moe-route --moe-temp 0.3 --route-weight 10` (non-zero gate init,
+   load-balance KL plus a per-sample entropy penalty).
+3. Edge-level message experts: `--moe-msg 4 --moe-route --moe-temp 0.5 --route-weight 10`. Each
+   agent pair is routed (GMoE-style; close-encounter vs far-field). 416K params.
+4. Parameter-matched control: a single interaction net, `--int-width 238` (353K, vs MoE-4's 357K).
+   This tests whether the MoE gain is only extra capacity.
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)

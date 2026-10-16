@@ -134,8 +134,20 @@ class GILODEFunc(nn.Module):
     '''
 
     def __init__(self, hidden_dim, mlp_width=None, adapter_width=120, adapter_gate_width=32,
-                 geo_dim=0, moe_k=1):
+                 geo_dim=0, moe_k=1, moe_temp=1.0, moe_route=False, moe_msg=1, int_width=None):
         super(GILODEFunc, self).__init__()
+        # Part 34 (all off unless set):
+        #   moe_route: routed MoE -- gate logits / moe_temp from a non-zero init, and the training
+        #     wrapper adds a load-balance KL(mean gate || uniform) plus a per-sample entropy penalty
+        #     (self.route_stats), so experts specialise instead of being averaged (Part 33 gates
+        #     were measured uniform: entropy 1.384 of 1.386).
+        #   moe_msg > 1: edge-level message experts; every agent pair (i, j) is routed by a gate on
+        #     its edge input (GMoE-style), e.g. close-encounter vs far-field interaction.
+        #   int_width: width of the interaction network (parameter-matched control for the MoE).
+        self.moe_temp = moe_temp
+        self.moe_route = moe_route
+        self.moe_msg = moe_msg
+        self.route_stats = []
         # Part 33 screens (all off in reported models):
         #   geo_dim > 0: geometry-aware messages. Pairwise differences of the DECODED states,
         #     dy = D(h_j) - D(h_i) (observation space), with |dy|^2, 1/(|dy|^2 + eps) and the
@@ -181,14 +193,22 @@ class GILODEFunc(nn.Module):
         # and log(1+degree).
         self.psi = utils.create_net(hidden_dim * 3 + 1, hidden_dim, n_layers=1, n_units=w, nonlinear=nn.Tanh)
         # f_interaction(h_i, m_i) -- the gated term added to dv/dt only.
-        self.f_interaction = utils.create_net(hidden_dim * 2, self.v_dim, n_layers=1, n_units=w, nonlinear=nn.Tanh)
+        self.f_interaction = utils.create_net(hidden_dim * 2, self.v_dim, n_layers=1,
+                                              n_units=int_width or w, nonlinear=nn.Tanh)
+        if moe_msg > 1:
+            self.msg_experts = nn.ModuleList([utils.create_net(hidden_dim * 3 + geo_in, hidden_dim, n_layers=2, n_units=w,
+                                                               nonlinear=nn.Tanh) for _ in range(moe_msg - 1)])
+            for e in self.msg_experts:
+                utils.init_network_weights(e)
+            self.msg_gate = nn.Linear(hidden_dim * 3 + geo_in, moe_msg)
         if moe_k > 1:
             self.f_experts = nn.ModuleList([utils.create_net(hidden_dim * 2, self.v_dim, n_layers=1, n_units=w,
                                                              nonlinear=nn.Tanh) for _ in range(moe_k - 1)])
             for e in self.f_experts:
                 utils.init_network_weights(e)
             self.moe_gate = nn.Linear(hidden_dim, moe_k)
-            nn.init.zeros_(self.moe_gate.weight); nn.init.zeros_(self.moe_gate.bias)   # uniform start
+            if not moe_route:
+                nn.init.zeros_(self.moe_gate.weight); nn.init.zeros_(self.moe_gate.bias)   # uniform start
         # State-dependent gate: sigmoid(a_theta([h_i, m_i, log(1+deg_i)]) + b0), b0 chosen so the
         # gate starts near 0.1 -- same warm-start rationale as the scalar alpha it replaces
         # (a hard-zero start left no gradient incentive to grow under long horizons).
@@ -313,6 +333,12 @@ class GILODEFunc(nn.Module):
 
         is_pos = (self.c > 0).unsqueeze(-1)
         msg = torch.where(is_pos, self.phi_pos(edge_in), self.phi_neg(edge_in))  # [B, N, N, H]
+        if self.moe_msg > 1:
+            gw = torch.softmax(self.msg_gate(edge_in) / self.moe_temp, dim=-1)        # [B, N, N, K]
+            outs = torch.stack([msg] + [e(edge_in) for e in self.msg_experts], dim=-1)
+            msg = (outs * gw.unsqueeze(-2)).sum(-1)
+            if self.moe_route and self.training:
+                self.route_stats.append(gw.reshape(-1, gw.shape[-1]))
 
         # Antisymmetric force channel: f_ij = chi(h_i,h_j) - chi(h_j,h_i) satisfies f_ij = -f_ji
         # exactly. chi is evaluated once and its transpose reused, so this costs one extra MLP
@@ -335,7 +361,9 @@ class GILODEFunc(nn.Module):
         int_in = torch.cat([h, m_tilde], dim=-1)
         interaction = self.f_interaction(int_in)  # [B, N, v_dim]
         if self.moe_k > 1:
-            wts = torch.softmax(self.moe_gate(h), dim=-1)                 # [B, N, K]
+            wts = torch.softmax(self.moe_gate(h) / self.moe_temp, dim=-1)  # [B, N, K]
+            if self.moe_route and self.training:
+                self.route_stats.append(wts.reshape(-1, wts.shape[-1]))
             outs = torch.stack([interaction] + [e(int_in) for e in self.f_experts], dim=-1)
             interaction = (outs * wts.unsqueeze(-2)).sum(-1)
 
@@ -428,7 +456,8 @@ class GILODEModel(nn.Module):
     def __init__(self, input_dim, hidden_dim, num_atoms, device, mlp_width=None, ode_substeps=1, ode_tol=None, ode_max_depth=6,
                  use_forecast_adapter=False, forecast_adapter_rank=4, use_smoother=False,
                  smoother_mode='full', ablate=(), use_reversion=False, n_particles=1,
-                 reversal_ext=0.0, geo_msg=False, moe_k=1, ctx_init=False):
+                 reversal_ext=0.0, geo_msg=False, moe_k=1, ctx_init=False,
+                 moe_temp=1.0, moe_route=False, moe_msg=1, int_width=None):
         super(GILODEModel, self).__init__()
         self.geo_msg = geo_msg
         self.ctx_init = ctx_init
@@ -499,7 +528,8 @@ class GILODEModel(nn.Module):
 
         self.decoder = nn.Linear(hidden_dim, input_dim)
         self.ode_func = GILODEFunc(hidden_dim, mlp_width=mlp_width,
-                                   geo_dim=input_dim if geo_msg else 0, moe_k=moe_k)
+                                   geo_dim=input_dim if geo_msg else 0, moe_k=moe_k,
+                                   moe_temp=moe_temp, moe_route=moe_route, moe_msg=moe_msg, int_width=int_width)
         if ctx_init:
             # Context encoder for the forecast start (Part 33): at the last observation, attention
             # over each agent's anchored history (keys carry the time offset), combined with the

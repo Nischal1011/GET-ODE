@@ -75,7 +75,8 @@ class GILODEBaseline(VAE_Baseline):
                  free_run=False, free_run_weight=FREE_RUN_WEIGHT, use_smoother=False,
                  smoother_mode='full', ablate=(), horizon_loss='prefix', use_reversion=False,
                  n_particles=1, debias=False, reversal_weight=0.0, reversal_ext=0.0,
-                 geo_msg=False, moe_k=1, ctx_init=False):
+                 geo_msg=False, moe_k=1, ctx_init=False, moe_temp=1.0, moe_route=False,
+                 moe_msg=1, int_width=None, route_weight=0.0):
         super(GILODEBaseline, self).__init__(
             input_dim=input_dim, latent_dim=hidden_dim, z0_prior=None, device=device, obsrv_std=obsrv_std)
         self.num_atoms = num_atoms
@@ -98,7 +99,9 @@ class GILODEBaseline(VAE_Baseline):
                                 use_forecast_adapter=use_forecast_adapter,
                                 use_smoother=use_smoother, smoother_mode=smoother_mode,
                                 ablate=ablate, use_reversion=use_reversion, n_particles=n_particles,
-                                reversal_ext=reversal_ext, geo_msg=geo_msg, moe_k=moe_k, ctx_init=ctx_init)
+                                reversal_ext=reversal_ext, geo_msg=geo_msg, moe_k=moe_k, ctx_init=ctx_init,
+                                moe_temp=moe_temp, moe_route=moe_route, moe_msg=moe_msg, int_width=int_width)
+        self.route_weight = route_weight
         self.reversal_weight = reversal_weight
         self.null_prior_weight = 0.0 if 'no_null_prior' in ablate else NULL_PRIOR_WEIGHT
 
@@ -176,6 +179,7 @@ class GILODEBaseline(VAE_Baseline):
                 if last_obs_idx > 2:
                     free_run_from = int(torch.randint(1, last_obs_idx - 1, (1,)).item())
 
+        self.core.ode_func.route_stats = []
         self.core.reversal_active = (self.reversal_weight > 0 and self.training and self.mode == "extrap")
         self.core.last_reversal = None
         pred, free_run, null_penalty = self.core(dense, mask, grid_times, decoder_time_steps, S, c,
@@ -225,6 +229,19 @@ class GILODEBaseline(VAE_Baseline):
         # not of a task or a dataset.
         if self.training:
             loss = loss + self.null_prior_weight * null_penalty
+
+        route_val = 0.0
+        if self.training and self.route_weight > 0 and self.core.ode_func.route_stats:
+            # Load balance: KL(mean gate || uniform); specialisation: mean per-sample gate entropy.
+            G = torch.cat(self.core.ode_func.route_stats, 0)
+            Kg = G.shape[-1]
+            gbar = G.mean(0)
+            lb = (gbar * (gbar * Kg).clamp_min(1e-12).log()).sum()
+            ent = -(G * G.clamp_min(1e-12).log()).sum(-1).mean()
+            route = lb + ent
+            route_val = route.item()
+            loss = loss + self.route_weight * route
+        self.core.ode_func.route_stats = []
 
         rev_val = 0.0
         if self.core.last_reversal is not None:
