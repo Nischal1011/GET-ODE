@@ -1897,6 +1897,19 @@ gradient-trained gates fail to route in dynamical systems (MixER 2025).
 4. Parameter-matched control: a single interaction net, `--int-width 238` (353K, vs MoE-4's 357K).
    This tests whether the MoE gain is only extra capacity.
 
+
+### 34.1 Screen result: no refinement passes; the parameter-matched control
+
+Best val at 15 epochs (charged seed 1991): no-MoE reference 0.0652; MoE-4 **0.0596**; MoE-8
+0.0604; routed MoE 0.0621; edge-level message experts 0.0659; **width-matched single interaction
+net (353K, same parameters as MoE-4) 0.0650**. None reaches the 0.0566 bar. More experts, forced
+specialisation and pair-level routing are all worse than uniform averaging. The control matches
+the no-MoE reference, so the MoE-4 gain is not extra capacity: it comes from averaging
+independently initialised interaction networks inside the vector field. (One seed at 15 epochs;
+the 9% gap to the control is large relative to the observed seed variation.) Per the pre-stated
+rule, architecture search on charged-extrap stops here. Best charged result: MoE-4, 5.50 vs
+LG-ODE 5.235 (1/3 seed pairs won).
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)
