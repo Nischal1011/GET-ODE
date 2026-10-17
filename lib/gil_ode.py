@@ -749,12 +749,21 @@ class GILODEModel(nn.Module):
         self._jac_states = None
         B, N, K, H = Hs.shape
         tot = 0.0
+        # The stability guard is excluded: it is exactly zero below its radius, but its unit-vector
+        # factor n / (||n|| + 1e-8) has an unbounded second derivative near n = 0, and the
+        # double backward then produces 0 * inf = NaN (Part 36: crashed at epoch 2, when the guard
+        # switches on).
+        guard_off = 'no_guard' not in self.ode_func.ablate
+        if guard_off:
+            self.ode_func.ablate.add('no_guard')
         for k in range(K):
             h = Hs[:, :, k].clone().requires_grad_(True)
             f = self.ode_func(ts[k], h)
             eps = torch.randn_like(f)
             vjp, = torch.autograd.grad(f, h, eps, create_graph=True)
             tot = tot + vjp.pow(2).sum(-1).mean()
+        if guard_off:
+            self.ode_func.ablate.discard('no_guard')
         return tot / K
 
     def _reverse(self, h):
