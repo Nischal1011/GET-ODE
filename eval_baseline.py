@@ -23,6 +23,7 @@ p.add_argument('--script', required=True)
 p.add_argument('--ckpt', required=True)
 p.add_argument('--model', required=True, help='display name, e.g. LG-ODE')
 p.add_argument('--out', default=None)
+p.add_argument('--dataset-dir-override', default=None, help='evaluate on a different dataset directory (same normalization source: its train files)')
 p.add_argument('--split', default='test', choices=['test', 'val', 'train'])
 p.add_argument('--dump', default=None, help='save every batch\'s (pred, truth, mask) to this .npz')
 cli = p.parse_args()
@@ -34,6 +35,8 @@ body = rest.split('    log_path =')[0]
 
 ck_args = torch.load(cli.ckpt, map_location='cpu', weights_only=False)['args']
 ck_args.save = os.path.dirname(cli.ckpt) + '/'
+if cli.dataset_dir_override:
+    ck_args.dataset = cli.dataset_dir_override; ck_args.dataset_dir = cli.dataset_dir_override
 ck_args.load = os.path.basename(cli.ckpt)
 
 ns = {'__name__': '__main__', '__file__': cli.script}

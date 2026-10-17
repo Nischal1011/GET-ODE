@@ -76,7 +76,7 @@ class GILODEBaseline(VAE_Baseline):
                  smoother_mode='full', ablate=(), horizon_loss='prefix', use_reversion=False,
                  n_particles=1, debias=False, reversal_weight=0.0, reversal_ext=0.0,
                  geo_msg=False, moe_k=1, ctx_init=False, moe_temp=1.0, moe_route=False,
-                 moe_msg=1, int_width=None, route_weight=0.0):
+                 moe_msg=1, int_width=None, route_weight=0.0, resplit=False):
         super(GILODEBaseline, self).__init__(
             input_dim=input_dim, latent_dim=hidden_dim, z0_prior=None, device=device, obsrv_std=obsrv_std)
         self.num_atoms = num_atoms
@@ -102,8 +102,44 @@ class GILODEBaseline(VAE_Baseline):
                                 reversal_ext=reversal_ext, geo_msg=geo_msg, moe_k=moe_k, ctx_init=ctx_init,
                                 moe_temp=moe_temp, moe_route=moe_route, moe_msg=moe_msg, int_width=int_width)
         self.route_weight = route_weight
+        self.resplit = resplit
         self.reversal_weight = reversal_weight
         self.null_prior_weight = 0.0 if 'no_null_prior' in ablate else NULL_PRIOR_WEIGHT
+
+    def _resplit(self, dense, mask, grid_times, batch_dict_decoder):
+        '''
+        Test-shaped training tasks (CHANGES.md Part 35). GIL-ODE beats LG-ODE by 12% on held-out
+        trajectories of the TRAINING task (30-step context, 29-step forecast) yet loses the TEST
+        task (60-step context, 59-step forecast, no clock gap). A filter can start a forecast
+        anywhere, so each training batch is rebuilt as one trajectory on a consistent clock and
+        re-split at a random point: observations before it condition the filter, every later
+        observation/target is a forecast target. Horizons then reach ~80% of the trajectory and
+        tau covers the test range. Evaluation is untouched.
+        '''
+        B, N, T, D = dense.shape
+        truth = batch_dict_decoder["data"].view(B, N, -1, D)
+        tmask = batch_dict_decoder["mask"].view(B, N, -1, D)
+        dts = batch_dict_decoder["time_steps"]
+        qi = torch.searchsorted(grid_times, dts)
+        full = dense.clone()
+        full[:, :, qi] = truth
+        fdm = mask.unsqueeze(-1).float().expand(-1, -1, -1, D).clone()
+        fdm[:, :, qi] = tmask
+        # One physical clock: close the train-pool gap between context end and forecast start.
+        g = grid_times.clone()
+        ctx = g < dts[0]
+        if ctx.any():
+            step = (dts[1:] - dts[:-1]).median() if dts.shape[0] > 1 else dts[0]
+            gap = dts[0] - g[ctx].max()
+            if gap > 2 * step:
+                g = torch.where(ctx, g + gap - step, g)
+        i0 = int(qi[0].item())
+        lo, hi = max(2, int(0.2 * T)), max(3, i0 + int(0.5 * (T - i0)))
+        k = int(torch.randint(lo, hi, (1,)).item())
+        obs_new = (fdm.sum(-1) > 0) & (torch.arange(T, device=dense.device) < k)
+        tgt = fdm[:, :, k:]
+        return (full, obs_new, g, g[k:], full[:, :, k:].reshape(B * N, T - k, D),
+                tgt.reshape(B * N, T - k, D))
 
     def compute_all_losses(self, batch_dict_encoder, batch_dict_decoder, batch_dict_graph,
                             n_traj_samples=1, kl_coef=1.):
@@ -111,6 +147,10 @@ class GILODEBaseline(VAE_Baseline):
             batch_dict_encoder, batch_dict_decoder, batch_dict_graph, self.num_atoms, self.dataset, self.device)
 
         decoder_time_steps = batch_dict_decoder["time_steps"]
+        truth_ov = tmask_ov = None
+        if self.resplit and self.training and self.mode == "extrap":
+            dense, mask, grid_times, decoder_time_steps, truth_ov, tmask_ov = self._resplit(
+                dense, mask, grid_times, batch_dict_decoder)
 
         # Free-running supervision (training only): branch an uncorrected rollout off the main
         # path inside the context window, so the vector field gets unaided rollout gradient
@@ -188,8 +228,8 @@ class GILODEBaseline(VAE_Baseline):
         B, N, T_Q, D = pred.shape
         pred_flat = pred.reshape(B * N, T_Q, D).unsqueeze(0)  # [1, M, T_Q, D]
 
-        truth = batch_dict_decoder["data"]       # [M, T_Q, D]
-        target_mask = batch_dict_decoder["mask"]  # [M, T_Q, D]
+        truth = batch_dict_decoder["data"] if truth_ov is None else truth_ov          # [M, T_Q, D]
+        target_mask = batch_dict_decoder["mask"] if tmask_ov is None else tmask_ov    # [M, T_Q, D]
 
         if self.mode == "extrap" and T_Q > 1 and self.horizon_loss == 'prefix':
             cutoffs = sorted(set(max(1, round(T_Q * f)) for f in HORIZON_FRACTIONS))

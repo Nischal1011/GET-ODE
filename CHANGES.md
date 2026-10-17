@@ -1910,6 +1910,33 @@ the 9% gap to the control is large relative to the observed seed variation.) Per
 rule, architecture search on charged-extrap stops here. Best charged result: MoE-4, 5.50 vs
 LG-ODE 5.235 (1/3 seed pairs won).
 
+
+## Part 35 — The real diagnosis: train/test TASK mismatch; test-shaped training tasks
+
+Evaluation only, charged-extrap (x1e-2):
+- **Not overfitting.** On 1,000 held-out train-pool trajectories (rows 5000-6000, unused because
+  val comes from the test pool), with the training-style task: GIL-ODE 1.21, LG-ODE 1.38.
+  **GIL-ODE is 12% better on unseen data** for the task it was trained on (seen trajectories:
+  1.12 vs 1.24).
+- It loses only on the test task, which is shaped differently: a 60-step context and a 59-step
+  forecast with a consistent clock, against training's 30-step context and 29-step forecast after
+  a 31-step phantom clock gap.
+- Supporting evidence: GIL-ODE predicts positions outside the box 2-3x more often than LG-ODE
+  (max |x| 1.87 vs 1.39). 35% of agent forecasts contain a wall bounce, and those carry about
+  half the gap (bounce: 7.69 vs 6.15; no bounce: 5.46 vs 4.79). The error ratio rises from step
+  11 onward.
+
+**Change** (`--resplit`, training only, extrapolation; `lib/baseline_gil_ode.py` `_resplit`).
+Each training batch is rebuilt as one trajectory on a consistent clock (the phantom gap is closed
+only when one is detected, so IEEE39 is untouched) and re-split at a random grid index k in
+[0.2T, i0 + 0.5(T - i0)]. Observations before k condition the filter; every observation or
+target after k is a forecast target. A filter can start a forecast anywhere, which an
+encode-then-decode model cannot do natively. Horizons then reach about 80% of the trajectory.
+Evaluation is the standard protocol, unchanged.
+
+Screen (`run_logs/screen35.sh`, 15 epochs, charged seed 1991): `--resplit` against the 0.0652
+reference, and `--resplit --moe 4` against 0.0596.
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)

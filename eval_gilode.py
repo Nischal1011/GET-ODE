@@ -34,6 +34,7 @@ from lib.gil_dataset import prepare_gil_batch
 
 p = argparse.ArgumentParser('GIL-ODE evaluation')
 p.add_argument('--ckpt', required=True)
+p.add_argument('--dataset-dir-override', default=None, help='evaluate on a different dataset directory (same normalization source: its train files)')
 p.add_argument('--split', default='test', choices=['test', 'val', 'train'])
 p.add_argument('--causal', action='store_true')
 p.add_argument('--decode-prior', action='store_true', help='predict each target from the state before its own observation is applied')
@@ -58,6 +59,8 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 ck = torch.load(cli.ckpt, map_location=device, weights_only=False)
 args = ck['args']
 
+if cli.dataset_dir_override:
+    args.dataset = cli.dataset_dir_override
 if cli.batch_size is not None:
     args.batch_size = cli.batch_size
 # Same seeding as training, so the loader draws the identical observation masks.
