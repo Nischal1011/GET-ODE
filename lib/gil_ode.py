@@ -134,8 +134,15 @@ class GILODEFunc(nn.Module):
     '''
 
     def __init__(self, hidden_dim, mlp_width=None, adapter_width=120, adapter_gate_width=32,
-                 geo_dim=0, moe_k=1, moe_temp=1.0, moe_route=False, moe_msg=1, int_width=None):
+                 geo_dim=0, moe_k=1, moe_temp=1.0, moe_route=False, moe_msg=1, int_width=None,
+                 support_dim=0):
         super(GILODEFunc, self).__init__()
+        # Part 36 (C): support-aware self dynamics. f_self also sees the decoded state y = D(h)
+        # and soft proximity to the edge of the training support (data are normalised to [-1, 1]
+        # by the training min/max): softplus((|y| - 0.9) / 0.05) * sign(y). Lets the vector field
+        # learn boundary interactions (wall bounces: 35% of charged forecasts, ~half its gap), a
+        # smooth stand-in for neural event functions (Chen et al. 2021). Off unless set.
+        self.support_dim = support_dim
         # Part 34 (all off unless set):
         #   moe_route: routed MoE -- gate logits / moe_temp from a non-zero init, and the training
         #     wrapper adds a load-balance KL(mean gate || uniform) plus a per-sample entropy penalty
@@ -169,7 +176,7 @@ class GILODEFunc(nn.Module):
         self.v_dim = hidden_dim - self.q_dim
 
         # dv/dt's local term (was f_local, over the full state, output now v-sized).
-        self.f_self = utils.create_net(hidden_dim, self.v_dim, n_layers=1, n_units=w, nonlinear=nn.Tanh)
+        self.f_self = utils.create_net(hidden_dim + 2 * support_dim, self.v_dim, n_layers=1, n_units=w, nonlinear=nn.Tanh)
         # NOTE: an eps_q residual on dq/dt was tried and removed. It was intended as a *small*
         # correction on top of the hard "dq/dt = v" skeleton, but nothing constrained its
         # magnitude, and a trained checkpoint showed ||eps_q(h)|| at 2.37x ||v|| -- i.e. the
@@ -368,7 +375,13 @@ class GILODEFunc(nn.Module):
             interaction = (outs * wts.unsqueeze(-2)).sum(-1)
 
         dq = v  # [B, N, q_dim] -- hard, binding: q's derivative IS v, no escape hatch
-        dv = self.f_self(h) + g * interaction  # [B, N, v_dim]
+        if self.support_dim > 0:
+            y = h @ self._W_dec.transpose(0, 1) + self._b_dec
+            prox = F.softplus((y.abs() - 0.9) / 0.05) * torch.sign(y)
+            self_in = torch.cat([h, y, prox], dim=-1)
+        else:
+            self_in = h
+        dv = self.f_self(self_in) + g * interaction  # [B, N, v_dim]
 
         # Horizon-gated residual expert. Zero at initialization (both output layers are zeroed),
         # so this is exactly a no-op until trained -- an adapted model starts identical to its
@@ -457,8 +470,15 @@ class GILODEModel(nn.Module):
                  use_forecast_adapter=False, forecast_adapter_rank=4, use_smoother=False,
                  smoother_mode='full', ablate=(), use_reversion=False, n_particles=1,
                  reversal_ext=0.0, geo_msg=False, moe_k=1, ctx_init=False,
-                 moe_temp=1.0, moe_route=False, moe_msg=1, int_width=None):
+                 moe_temp=1.0, moe_route=False, moe_msg=1, int_width=None, support_aware=False,
+                 jac_reg=0.0):
         super(GILODEModel, self).__init__()
+        self.support_aware = support_aware
+        # Part 36 (B): Jacobian (Lyapunov) regulariser, RNODE-style (Finlay et al. 2020): along the
+        # trajectory's own states (detached), a Hutchinson estimate of ||df/dh||_F^2, so the
+        # learned flow amplifies perturbations less. Computed in the wrapper via jacobian_penalty.
+        self.jac_reg = jac_reg
+        self._jac_states = None
         self.geo_msg = geo_msg
         self.ctx_init = ctx_init
         # Time-reversal consistency (CHANGES.md Part 32; after TANGO, Huang et al. 2023). Set by the
@@ -529,7 +549,8 @@ class GILODEModel(nn.Module):
         self.decoder = nn.Linear(hidden_dim, input_dim)
         self.ode_func = GILODEFunc(hidden_dim, mlp_width=mlp_width,
                                    geo_dim=input_dim if geo_msg else 0, moe_k=moe_k,
-                                   moe_temp=moe_temp, moe_route=moe_route, moe_msg=moe_msg, int_width=int_width)
+                                   moe_temp=moe_temp, moe_route=moe_route, moe_msg=moe_msg, int_width=int_width,
+                                   support_dim=input_dim if support_aware else 0)
         if ctx_init:
             # Context encoder for the forecast start (Part 33): at the last observation, attention
             # over each agent's anchored history (keys carry the time offset), combined with the
@@ -721,6 +742,21 @@ class GILODEModel(nn.Module):
         d = self.ctx_out(torch.cat([ctx, ctx.mean(1, keepdim=True).expand(-1, N, -1), h], -1))
         return d - d @ P_row                                                             # null space only
 
+    def jacobian_penalty(self):
+        if self._jac_states is None:
+            return None
+        Hs, ts = self._jac_states
+        self._jac_states = None
+        B, N, K, H = Hs.shape
+        tot = 0.0
+        for k in range(K):
+            h = Hs[:, :, k].clone().requires_grad_(True)
+            f = self.ode_func(ts[k], h)
+            eps = torch.randn_like(f)
+            vjp, = torch.autograd.grad(f, h, eps, create_graph=True)
+            tot = tot + vjp.pow(2).sum(-1).mean()
+        return tot / K
+
     def _reverse(self, h):
         q = self.ode_func.q_dim
         return torch.cat([h[..., :q], -h[..., q:]], dim=-1)
@@ -818,7 +854,7 @@ class GILODEModel(nn.Module):
         K = self.anchor_gain()  # [H, D] -- W is fixed within a forward pass, so compute it once
         P_row = K @ self.decoder.weight                            # [H, H] row-space projector
         self.ode_func.set_null_projector(P_row)                    # for the stability guard
-        if self.geo_msg:
+        if self.geo_msg or self.support_aware:
             self.ode_func.set_decoder(self.decoder.weight, self.decoder.bias)
         self._diag_corr_max = 0.0
 
@@ -991,6 +1027,10 @@ class GILODEModel(nn.Module):
 
         if self.reversal_active:
             self.last_reversal = self._reversal_loss(outputs, obs_mask, grid_times, time_since_obs)
+        if self.jac_reg > 0 and self.training:
+            # sample up to 8 grid times; states detached so the penalty shapes f, not the path
+            idx = torch.randperm(T, device=outputs.device)[:8]
+            self._jac_states = (outputs[:, :, idx].detach(), grid_times[idx])
 
         query_idx = torch.searchsorted(grid_times, decoder_time_steps)
         h_at_query = outputs[:, :, query_idx]

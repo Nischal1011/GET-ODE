@@ -76,7 +76,8 @@ class GILODEBaseline(VAE_Baseline):
                  smoother_mode='full', ablate=(), horizon_loss='prefix', use_reversion=False,
                  n_particles=1, debias=False, reversal_weight=0.0, reversal_ext=0.0,
                  geo_msg=False, moe_k=1, ctx_init=False, moe_temp=1.0, moe_route=False,
-                 moe_msg=1, int_width=None, route_weight=0.0, resplit=False):
+                 moe_msg=1, int_width=None, route_weight=0.0, resplit=False,
+                 support_aware=False, jac_reg=0.0):
         super(GILODEBaseline, self).__init__(
             input_dim=input_dim, latent_dim=hidden_dim, z0_prior=None, device=device, obsrv_std=obsrv_std)
         self.num_atoms = num_atoms
@@ -100,7 +101,8 @@ class GILODEBaseline(VAE_Baseline):
                                 use_smoother=use_smoother, smoother_mode=smoother_mode,
                                 ablate=ablate, use_reversion=use_reversion, n_particles=n_particles,
                                 reversal_ext=reversal_ext, geo_msg=geo_msg, moe_k=moe_k, ctx_init=ctx_init,
-                                moe_temp=moe_temp, moe_route=moe_route, moe_msg=moe_msg, int_width=int_width)
+                                moe_temp=moe_temp, moe_route=moe_route, moe_msg=moe_msg, int_width=int_width,
+                                support_aware=support_aware, jac_reg=jac_reg)
         self.route_weight = route_weight
         self.resplit = resplit
         self.reversal_weight = reversal_weight
@@ -270,6 +272,12 @@ class GILODEBaseline(VAE_Baseline):
         if self.training:
             loss = loss + self.null_prior_weight * null_penalty
 
+        jac_val = 0.0
+        if self.training and self.core.jac_reg > 0:
+            jp = self.core.jacobian_penalty()
+            if jp is not None:
+                jac_val = jp.item()
+                loss = loss + self.core.jac_reg * jp
         route_val = 0.0
         if self.training and self.route_weight > 0 and self.core.ode_func.route_stats:
             # Load balance: KL(mean gate || uniform); specialisation: mean per-sample gate entropy.
@@ -311,6 +319,7 @@ class GILODEBaseline(VAE_Baseline):
             "null_penalty": null_penalty.data.item(),
             "crps": crps_val,
             "reversal": rev_val,
+            "jac": jac_val,
             "likelihood": torch.mean(rec_likelihood).data.item(),
             "mse": torch.mean(mse_val).data.item(),
             "kl_first_p": 0.0,  # no single scalar to track anymore -- gate is now per-node/state-dependent

@@ -1937,6 +1937,28 @@ Evaluation is the standard protocol, unchanged.
 Screen (`run_logs/screen35.sh`, 15 epochs, charged seed 1991): `--resplit` against the 0.0652
 reference, and `--resplit --moe 4` against 0.0596.
 
+
+## Part 36 — Back to the validated 5/6 baseline; three drop-in ideas
+
+At the user's direction, the MoE (Part 33-34), reversion head, particles and resplit are all set
+aside. New ideas are tested one at a time on the configuration that produced the reported 5/6
+(`fc_*`: `--ode-tol 1e-3 --smoother --smoother-mode coldstart --free-run --free-run-weight 1.0`,
+default prefix loss), against a matched 15-epoch run of that baseline.
+
+- **A `--ema 0.99`**: exponential moving average of the weights, used for validation,
+  selection and test. Averaging is the mechanism behind the only charged gain so far (Part 34).
+- **B `--jac-reg 0.002`**: RNODE-style Hutchinson estimate of ||df/dh||_F^2 at detached
+  trajectory states (Finlay et al., ICML 2020). Measured on a trained charged model:
+  ||J||_F^2 ~ 7,600, so the learned flow is very stiff, which fits the fast error growth after
+  step 10.
+- **C `--support-aware`**: f_self also sees the decoded state and its soft proximity to the edge
+  of the training support (data normalised to [-1, 1]), a smooth stand-in for neural event
+  functions (Chen et al., ICLR 2021). Targets wall bounces: 35% of charged forecasts, about half
+  the gap.
+
+Screen + auto-chain (`run_logs/screen36.sh`): pass = best val <= 0.95 x reference. Passing ideas
+launch 3-seed full charged runs automatically, on exit=0 only.
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)

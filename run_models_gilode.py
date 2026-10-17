@@ -61,6 +61,9 @@ parser.add_argument('--route-weight', type=float, default=0.0)
 parser.add_argument('--moe-msg', type=int, default=1, help='edge-level message experts (Part 34)')
 parser.add_argument('--int-width', type=int, default=None, help='interaction-network width (parameter-matched control)')
 parser.add_argument('--resplit', action='store_true', help='test-shaped training tasks: consistent clock + random split (Part 35)')
+parser.add_argument('--support-aware', action='store_true', help='support-aware self dynamics (Part 36 C)')
+parser.add_argument('--jac-reg', type=float, default=0.0, help='Jacobian Frobenius regulariser weight (Part 36 B)')
+parser.add_argument('--ema', type=float, default=0.0, help='EMA decay of the weights; eval/selection use the EMA (Part 36 A)')
 parser.add_argument('--ablate', type=str, default='',
                     help='comma-separated ablations (lib/gil_ode.py): no_lift, overwrite, no_gate, complete, '
                          'no_residual, no_guard, no_antisym, no_null_prior')
@@ -190,7 +193,8 @@ if __name__ == '__main__':
                            geo_msg=args.geo_msg, moe_k=args.moe, ctx_init=args.ctx_init,
                            moe_temp=args.moe_temp, moe_route=args.moe_route, moe_msg=args.moe_msg,
                            int_width=args.int_width, route_weight=args.route_weight,
-                           resplit=args.resplit).to(device)
+                           resplit=args.resplit, support_aware=args.support_aware,
+                           jac_reg=args.jac_reg).to(device)
 
     if args.load is not None:
         ckpt_path = os.path.join(args.save, args.load)
@@ -322,6 +326,17 @@ if __name__ == '__main__':
     plateau_state = {'since_improve': 0, 'cuts': 0, 'best_sd': None}
 
     diag_state = {}
+    # Part 36 (A): exponential moving average of the weights. Validation, checkpoint selection and
+    # test all use the EMA weights; training continues on the raw weights.
+    ema_state = ({n: p.detach().clone() for n, p in model.named_parameters() if p.requires_grad}
+                 if args.ema > 0 else {})
+
+    def swap_ema():
+        '''Swap raw and EMA parameter values in place (call twice to restore).'''
+        with torch.no_grad():
+            for n_, p_ in model.named_parameters():
+                if n_ in ema_state:
+                    tmp = p_.detach().clone(); p_.copy_(ema_state[n_]); ema_state[n_].copy_(tmp)
 
     def train_single_batch(batch_dict_encoder, batch_dict_decoder, batch_dict_graph):
         optimizer.zero_grad()
@@ -343,6 +358,12 @@ if __name__ == '__main__':
         diag_state['reversal'] = diag_state.get('reversal', 0.0) + train_res.get('reversal', 0.0)
         diag_state['nb'] = diag_state.get('nb', 0) + 1
         optimizer.step()
+        if args.ema > 0:
+            with torch.no_grad():
+                for n_, p_ in model.named_parameters():
+                    if n_ in ema_state:
+                        ema_state[n_].mul_(args.ema).add_(p_.detach(), alpha=1 - args.ema)
+        diag_state['jac'] = diag_state.get('jac', 0.0) + train_res.get('jac', 0.0)
         loss_value = loss.data.item()
         del loss
         torch.cuda.empty_cache()
@@ -401,6 +422,8 @@ if __name__ == '__main__':
                 epo, 'not calibrated' if radius is None else '{:.4f}'.format(radius)))
 
         model.eval()
+        if args.ema > 0:
+            swap_ema()
         val_res = compute_loss_all_batches(model, val_encoder, val_graph, val_decoder,
                                            n_batches=val_batch, device=device, n_traj_samples=1, kl_coef=0.)
         # Diagnostic only, never used for checkpoint selection -- see run_models_corrected.py.
@@ -444,6 +467,11 @@ if __name__ == '__main__':
         if args.reversal_weight > 0:
             message_graph += ' reversal mse {:.6f}|'.format(diag_state.get('reversal', 0.0) / max(diag_state.get('nb', 1), 1))
             diag_state['reversal'] = 0.0; diag_state['nb'] = 0
+        if args.jac_reg > 0:
+            message_graph += ' jac {:.4f}|'.format(diag_state.get('jac', 0.0) / max(diag_state.get('nb', 1), 1))
+            diag_state['jac'] = 0.0
+            if args.reversal_weight <= 0:
+                diag_state['nb'] = 0
         if args.particles > 1:
             message_graph += ' diffusion sigma mean {:.4f}|'.format(
                 torch.nn.functional.softplus(model.core.log_diffusion).mean().item())
@@ -504,6 +532,8 @@ if __name__ == '__main__':
                              'lr {:.3e} -> {:.3e} | cut {:d}/{:d}|').format(
                     epo, best_val_mse, cur_lr, new_lr, plateau_state['cuts'], PLATEAU_MAX_CUTS))
 
+        if args.ema > 0:
+            swap_ema()   # back to raw weights for the next training epoch
         torch.cuda.empty_cache()
 
     utils.get_ckpt_model(best_ckpt_path, model, device)
