@@ -64,6 +64,11 @@ parser.add_argument('--resplit', action='store_true', help='test-shaped training
 parser.add_argument('--support-aware', action='store_true', help='support-aware self dynamics (Part 36 C)')
 parser.add_argument('--jac-reg', type=float, default=0.0, help='Jacobian Frobenius regulariser weight (Part 36 B)')
 parser.add_argument('--ema', type=float, default=0.0, help='EMA decay of the weights; eval/selection use the EMA (Part 36 A)')
+parser.add_argument('--init-from', type=str, default=None, help='continue training ALL parameters from this checkpoint (paired fine-tune screens)')
+parser.add_argument('--dyn-dropout', type=float, default=0.0, help='dropout in the vector field (Part 38 E)')
+parser.add_argument('--obs-noise', type=float, default=0.0, help='training noise on anchored observations (Part 38 F)')
+parser.add_argument('--distill-from', type=str, default=None, help='comma-separated teacher checkpoints (Part 38 D)')
+parser.add_argument('--distill-weight', type=float, default=0.0)
 parser.add_argument('--ablate', type=str, default='',
                     help='comma-separated ablations (lib/gil_ode.py): no_lift, overwrite, no_gate, complete, '
                          'no_residual, no_guard, no_antisym, no_null_prior')
@@ -194,7 +199,25 @@ if __name__ == '__main__':
                            moe_temp=args.moe_temp, moe_route=args.moe_route, moe_msg=args.moe_msg,
                            int_width=args.int_width, route_weight=args.route_weight,
                            resplit=args.resplit, support_aware=args.support_aware,
-                           jac_reg=args.jac_reg).to(device)
+                           jac_reg=args.jac_reg, obs_noise=args.obs_noise,
+                           distill_weight=args.distill_weight).to(device)
+    model.core.ode_func.dyn_dropout = args.dyn_dropout
+    if args.distill_from:
+        for tp in args.distill_from.split(','):
+            t = GILODEBaseline(input_dim=input_dim, hidden_dim=args.hidden_dim, num_atoms=args.n_balls,
+                               dataset=args.data, obsrv_std=obsrv_std, device=device, mode=args.mode,
+                               mlp_width=args.mlp_width, ode_substeps=args.ode_substeps, ode_tol=args.ode_tol,
+                               use_smoother=args.smoother, smoother_mode=args.smoother_mode).to(device)
+            t.load_state_dict(torch.load(tp, map_location=device, weights_only=False)['state_dict'], strict=False)
+            t.eval()
+            for q in t.parameters():
+                q.requires_grad_(False)
+            model.teachers.append(t)
+        print('distillation teachers:', len(model.teachers))
+    if args.init_from:
+        st = torch.load(args.init_from, map_location=device, weights_only=False)['state_dict']
+        missing, unexpected = model.load_state_dict(st, strict=False)
+        print('init-from', args.init_from, 'missing', missing, 'unexpected', unexpected)
 
     if args.load is not None:
         ckpt_path = os.path.join(args.save, args.load)
@@ -397,7 +420,7 @@ if __name__ == '__main__':
     # Calibrate the stability guard's radius over the first epoch, which is comfortably inside the
     # normal regime (the springs-extrap blowup consistently appears around epoch 4), then freeze
     # it. The guard is inactive while guard_R < 0, so epoch 1 trains exactly as before.
-    model.core.calibrating = True
+    model.core.calibrating = args.init_from is None   # a loaded checkpoint keeps its guard radius
 
     if args.refine_from is not None or args.forecast_adapter_from is not None:
         # Score the loaded checkpoint before touching it, and seed best_val with that. Refinement

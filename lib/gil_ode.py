@@ -143,6 +143,10 @@ class GILODEFunc(nn.Module):
         # learn boundary interactions (wall bounces: 35% of charged forecasts, ~half its gap), a
         # smooth stand-in for neural event functions (Chen et al. 2021). Off unless set.
         self.support_dim = support_dim
+        # Part 38 (E): dropout on the vector field's interaction message and self/interaction
+        # terms. Active in training, and at test time only when self.mc is set (MC averaging).
+        self.dyn_dropout = 0.0
+        self.mc = False
         # Part 34 (all off unless set):
         #   moe_route: routed MoE -- gate logits / moe_temp from a non-zero init, and the training
         #     wrapper adds a load-balance KL(mean gate || uniform) plus a per-sample entropy penalty
@@ -363,6 +367,8 @@ class GILODEFunc(nn.Module):
         log_deg = torch.log1p(deg)  # [B, N, 1]
         m_tilde = self.psi(torch.cat([m_sum, m_mean, m_anti, log_deg], dim=-1))  # [B, N, H]
 
+        if self.dyn_dropout > 0 and (self.training or self.mc):
+            m_tilde = F.dropout(m_tilde, self.dyn_dropout, training=True)
         gate_in = torch.cat([h, m_tilde, log_deg], dim=-1)
         g = torch.sigmoid(self.gate_net(gate_in))  # [B, N, 1]
         int_in = torch.cat([h, m_tilde], dim=-1)

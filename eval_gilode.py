@@ -48,6 +48,7 @@ p.add_argument('--dump', default=None)
 p.add_argument('--dump-batches', type=int, default=1)
 p.add_argument('--out', default=None, help='append the JSON result line to this file')
 p.add_argument('--tag', default='')
+p.add_argument('--mc', type=int, default=0, help='MC-dropout passes to average (needs a model trained with --dyn-dropout)')
 p.add_argument('--context-window', type=float, default=0.0,
                help='use only observations within this time of the last observation (0 = all)')
 p.add_argument('--context-shift', type=float, default=0.0,
@@ -199,7 +200,12 @@ with torch.no_grad():
         S_used = perturb_graph(S)
         if args.data == 'charged' and cli.graph != 'true':
             pass  # charged S is already complete; 'complete' is a no-op there by construction
-        pred, _, _ = core(dense, mask, grid_times, b_de['time_steps'], S_used, c)
+        if cli.mc > 0:
+            core.ode_func.dyn_dropout = getattr(args, 'dyn_dropout', 0.0); core.ode_func.mc = True
+            pred = torch.stack([core(dense, mask, grid_times, b_de['time_steps'], S_used, c)[0]
+                                for _ in range(cli.mc)]).mean(0)
+        else:
+            pred, _, _ = core(dense, mask, grid_times, b_de['time_steps'], S_used, c)
         T_Q = pred.shape[2]
         pred_flat = pred.reshape(B * N, T_Q, -1)
         truth, tmask = b_de['data'], b_de['mask']

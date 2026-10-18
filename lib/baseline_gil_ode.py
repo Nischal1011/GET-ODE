@@ -77,7 +77,7 @@ class GILODEBaseline(VAE_Baseline):
                  n_particles=1, debias=False, reversal_weight=0.0, reversal_ext=0.0,
                  geo_msg=False, moe_k=1, ctx_init=False, moe_temp=1.0, moe_route=False,
                  moe_msg=1, int_width=None, route_weight=0.0, resplit=False,
-                 support_aware=False, jac_reg=0.0):
+                 support_aware=False, jac_reg=0.0, obs_noise=0.0, distill_weight=0.0):
         super(GILODEBaseline, self).__init__(
             input_dim=input_dim, latent_dim=hidden_dim, z0_prior=None, device=device, obsrv_std=obsrv_std)
         self.num_atoms = num_atoms
@@ -105,6 +105,12 @@ class GILODEBaseline(VAE_Baseline):
                                 support_aware=support_aware, jac_reg=jac_reg)
         self.route_weight = route_weight
         self.resplit = resplit
+        # Part 38 (F): GNS-style training noise on the anchored observations (targets stay clean).
+        self.obs_noise = obs_noise
+        # Part 38 (D): ensemble distillation. self.teachers (set by the runner) are frozen
+        # checkpoints; their mean prediction is an extra regression target.
+        self.distill_weight = distill_weight
+        self.teachers = []
         self.reversal_weight = reversal_weight
         self.null_prior_weight = 0.0 if 'no_null_prior' in ablate else NULL_PRIOR_WEIGHT
 
@@ -221,6 +227,13 @@ class GILODEBaseline(VAE_Baseline):
                 if last_obs_idx > 2:
                     free_run_from = int(torch.randint(1, last_obs_idx - 1, (1,)).item())
 
+        if self.training and self.obs_noise > 0:
+            dense = dense + self.obs_noise * torch.randn_like(dense) * mask.unsqueeze(-1)
+        teacher_mean = None
+        if self.training and self.distill_weight > 0 and self.teachers:
+            with torch.no_grad():
+                teacher_mean = torch.stack([t.core(dense, mask, grid_times, decoder_time_steps, S, c)[0]
+                                            for t in self.teachers]).mean(0)
         self.core.ode_func.route_stats = []
         self.core.reversal_active = (self.reversal_weight > 0 and self.training and self.mode == "extrap")
         self.core.last_reversal = None
@@ -272,6 +285,10 @@ class GILODEBaseline(VAE_Baseline):
         if self.training:
             loss = loss + self.null_prior_weight * null_penalty
 
+        if teacher_mean is not None:
+            tm_ = target_mask.view(B, N, T_Q, D)
+            dl = ((pred - teacher_mean) ** 2 * tm_).sum() / tm_.sum().clamp(min=1.0)
+            loss = loss + self.distill_weight * dl / (2 * self.obsrv_std.squeeze() ** 2)
         jac_val = 0.0
         if self.training and self.core.jac_reg > 0:
             jp = self.core.jacobian_penalty()
