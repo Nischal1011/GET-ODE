@@ -1959,6 +1959,23 @@ default prefix loss), against a matched 15-epoch run of that baseline.
 Screen + auto-chain (`run_logs/screen36.sh`): pass = best val <= 0.95 x reference. Passing ideas
 launch 3-seed full charged runs automatically, on exit=0 only.
 
+
+### 36.1 Results: all three rejected; the 15-epoch screen is too noisy
+
+- A (EMA): screen val 0.0760 vs reference 0.0707, worse.
+- B (Jacobian regulariser): the first run hit NaN at epoch 2 (the double backward through the
+  stability guard gives 0 * inf, fixed by excluding the guard from the penalty). The rerun gave
+  0.0705 vs 0.0707, no gain.
+- C (support-aware dynamics): screen 0.0661 (-6.5%) passed, but the full 50-epoch runs give
+  6.705 / 6.357 / 6.167 (mean 6.410) against the matched baseline 6.350 / 6.358 / 5.939 (6.216).
+  Worse. Validation agrees (0.0630 vs 0.0612).
+
+**Screening noise:** the baseline's own 15-epoch screen reached 0.0707, while the identical
+config and seed reached 0.0784 at epoch 15 of its 50-epoch run. That is ~10% run-to-run
+variation, twice the 5% pass bar, so single-seed 15-epoch screens cannot detect the effects being
+tested. Future screens: 25 epochs, 2 seeds, an 8% bar, compared with the baseline's curves at the
+same epoch.
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)
