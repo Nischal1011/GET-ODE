@@ -1997,6 +1997,28 @@ diagnostic. No training from scratch.
   context: 7.16/7.08, 7.07/6.71, 6.20/5.94 (seeds 1991/1993) versus 6.38/5.94 with the full
   context. Longer context helps. Rejected.
 
+
+## Part 38 — Paired fine-tune screen (fast signal): dynamics dropout and distillation pass
+
+The fast signal: continue ALL parameters of the trained 5/6-baseline checkpoint for 5 epochs
+(`--init-from`) and compare with a control continued the same way. Pairing by seed cancels most
+of the seed noise. Charged-extrap, best validation MSE:
+
+| idea | seed 1991 (ctl 0.0606) | seed 1993 (ctl 0.0601) | test 1991/1993 (ctl 6.16/6.10) |
+|---|---|---|---|
+| E `--dyn-dropout 0.1` | 0.0576 (-5.0%) | 0.0578 (-3.9%) | 5.82 / 5.90 |
+| D distillation from the 3 baseline seeds | 0.0592 (-2.4%) | 0.0568 (-5.5%) | 6.04 / 5.79 |
+| F `--obs-noise 0.01` | 0.0606 (0%) | 0.0608 (+1%) | rejected |
+
+E implementation note: the first version resampled the dropout mask at every vector-field
+evaluation. That made the right-hand side random in time, so error control bisected about 100x
+more (33k vs 380 refinements per epoch). Fixed to one mask per trajectory per forward pass.
+
+E is the clean candidate. D needs three trained teachers, i.e. 4x the training budget of the
+baselines. **Full runs** (`run_logs/full38_drop.sh`): 5/6 config + `--dyn-dropout 0.1`, 50
+epochs from scratch, charged-extrap, 3 seeds. Started 10-18 16:55 (two runs launched by a
+rejected command were stopped first).
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)
