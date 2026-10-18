@@ -1976,6 +1976,27 @@ variation, twice the 5% pass bar, so single-seed 15-epoch screens cannot detect 
 tested. Future screens: 25 epochs, 2 seeds, an 8% bar, compared with the baseline's curves at the
 same epoch.
 
+
+## Part 37 — Fast-signal round: three orthogonal ideas, all rejected in about 2 hours
+
+Fast signals: evaluation-only tests on the trained 5/6-baseline checkpoints, or a gradient
+diagnostic. No training from scratch.
+- **A: exact gradients** (direct backprop instead of the adjoint; ANODE showed adjoint
+  gradients can be wrong for stiff flows, and ours has ||J||_F ~ 87). Gradient cosine
+  adjoint-vs-direct on a trained checkpoint: charged 1.0000 (relative difference 0.000), springs
+  0.9992 (5%). Not the problem. Rejected.
+- **B: strong-constraint 4D-Var at test time** (`tta_eval.py`): optimise an increment to the
+  posterior state at the start of a window so the uncorrected trajectory fits every window
+  observation. Charged seed 1993, batch 0: standard 5.73; free run from the window start 7.74;
+  after 30 / 100 Adam iterations 14.8 / 11.5. Fitting 4 observed dimensions through an 80-dim
+  latent increment wrecks the unobserved state. Rejected.
+- **C: lagged-average forecasting** (Hoffman & Kalnay 1983): averaging forecasts started at
+  earlier filter states gives 5.80 / 5.99 / 6.14 for 2 / 4 / 6 starts, versus 5.73 standard.
+  Earlier starts are just worse. Rejected.
+- **Extra check: context truncation to the training length.** 0.25 / 0.5 / 0.75 of the
+  context: 7.16/7.08, 7.07/6.71, 6.20/5.94 (seeds 1991/1993) versus 6.38/5.94 with the full
+  context. Longer context helps. Rejected.
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)

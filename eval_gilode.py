@@ -48,6 +48,8 @@ p.add_argument('--dump', default=None)
 p.add_argument('--dump-batches', type=int, default=1)
 p.add_argument('--out', default=None, help='append the JSON result line to this file')
 p.add_argument('--tag', default='')
+p.add_argument('--context-window', type=float, default=0.0,
+               help='use only observations within this time of the last observation (0 = all)')
 p.add_argument('--context-shift', type=float, default=0.0,
                help='diagnostic: add this to every context observation time (e.g. -0.5 reproduces the '
                     'train-time gap of the springs/charged extrapolation loader)')
@@ -191,6 +193,9 @@ with torch.no_grad():
                 dropped[b, torch.randperm(N, generator=rng)[:cli.drop_agents].to(device)] = True
             mask = mask & ~dropped.unsqueeze(-1)
 
+        if cli.context_window > 0:
+            t_last = grid_times[mask.any(1).any(0).nonzero().max()]
+            mask = mask & (grid_times >= t_last - cli.context_window).view(1, 1, -1)
         S_used = perturb_graph(S)
         if args.data == 'charged' and cli.graph != 'true':
             pass  # charged S is already complete; 'complete' is a no-op there by construction
@@ -241,7 +246,7 @@ tot['overlap'] = float(np.mean(tot.get('overlap', [0])))
 split = {k: float(np.nanmean(tot[k])) for k in ('mse_seen', 'mse_unseen') if k in tot}
 res = {'tag': cli.tag, 'target_obs_overlap': tot['overlap'], 'ckpt': os.path.basename(cli.ckpt), 'data': args.data, 'mode': args.mode,
        'seed': args.random_seed, 'split': cli.split, 'causal': cli.causal, 'drop_agents': cli.drop_agents,
-       'knockout_lift': cli.knockout_lift, 'graph': cli.graph, 'context_shift': cli.context_shift, 'decode_prior': cli.decode_prior,
+       'knockout_lift': cli.knockout_lift, 'graph': cli.graph, 'context_window': cli.context_window, 'context_shift': cli.context_shift, 'decode_prior': cli.decode_prior,
        'mse_full': tot['mse_full'] / n_batches, 'mse_check': tot['mse_check'] / n_batches,
        'mse_prefix': tot['mse_prefix'] / n_batches,
        **split, 'particles': core.n_particles,

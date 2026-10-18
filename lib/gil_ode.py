@@ -1043,6 +1043,9 @@ class GILODEModel(nn.Module):
 
         query_idx = torch.searchsorted(grid_times, decoder_time_steps)
         h_at_query = outputs[:, :, query_idx]
+        # Exposed for test-time procedures (tta_eval.py): posterior states on the grid.
+        self._last_pass = {'outputs': outputs, 'obs_mask': obs_mask, 'grid': grid_times,
+                           'query_idx': query_idx, 'dense': dense}
 
         # ---- Bidirectional smoothing (interpolation) ----
         # The forward pass is a causal FILTER: its state at time t has seen only observations up to t.
