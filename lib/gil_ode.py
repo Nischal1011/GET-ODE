@@ -147,6 +147,7 @@ class GILODEFunc(nn.Module):
         # terms. Active in training, and at test time only when self.mc is set (MC averaging).
         self.dyn_dropout = 0.0
         self.mc = False
+        self._drop_mask = None
         # Part 34 (all off unless set):
         #   moe_route: routed MoE -- gate logits / moe_temp from a non-zero init, and the training
         #     wrapper adds a load-balance KL(mean gate || uniform) plus a per-sample entropy penalty
@@ -367,8 +368,11 @@ class GILODEFunc(nn.Module):
         log_deg = torch.log1p(deg)  # [B, N, 1]
         m_tilde = self.psi(torch.cat([m_sum, m_mean, m_anti, log_deg], dim=-1))  # [B, N, H]
 
-        if self.dyn_dropout > 0 and (self.training or self.mc):
-            m_tilde = F.dropout(m_tilde, self.dyn_dropout, training=True)
+        if self._drop_mask is not None:
+            # one mask per trajectory per forward pass (set in GILODEModel._forward_single): a
+            # mask resampled at every function evaluation makes the right-hand side random in time,
+            # and the step-doubling error control then bisects ~100x more (measured).
+            m_tilde = m_tilde * self._drop_mask
         gate_in = torch.cat([h, m_tilde, log_deg], dim=-1)
         g = torch.sigmoid(self.gate_net(gate_in))  # [B, N, 1]
         int_in = torch.cat([h, m_tilde], dim=-1)
@@ -863,6 +867,11 @@ class GILODEModel(nn.Module):
         costs assimilation quality (CHANGES.md Part 25).
         '''
         B, N, T, D = dense.shape
+        f_ = self.ode_func
+        if f_.dyn_dropout > 0 and (self.training or f_.mc):
+            f_._drop_mask = (torch.rand(B, N, self.hidden_dim, device=dense.device) > f_.dyn_dropout).float() / (1 - f_.dyn_dropout)
+        else:
+            f_._drop_mask = None
         if 'complete' in self.ablate:
             S = (1 - torch.eye(N, device=S.device)).expand(B, -1, -1)
         self.ode_func.set_graph(S, c)
