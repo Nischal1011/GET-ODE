@@ -1,0 +1,12 @@
+numpy>=1.26
+PyYAML>=6.0
+scipy>=1.10
+torch>=2.2
+torchdiffeq>=0.2.3
+tqdm>=4.66
+wandb>=0.16
+
+# Validation dependencies
+flake8>=7.0
+pytest>=8.0
+

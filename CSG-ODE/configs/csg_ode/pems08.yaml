@@ -1,0 +1,23 @@
+model: csg_ode
+dataset: pems08
+num_nodes: 170
+input_dim: 3
+batch_size: 4
+observation_embedding_dim: 16
+node_parameter_dim: 8
+hidden_dim: 16
+latent_dim: 16
+augment_dim: 0
+subnetwork_width: 64
+subnetwork_depth: 1
+num_subnetworks: 2
+num_relations: 1
+epochs: 50
+learning_rate: 0.0005
+weight_decay: 0.001
+dropout: 0.2
+grad_clip: 10.0
+alpha: 0.5
+solver: euler
+normalization_mode: paper_splitwise_maxabs
+

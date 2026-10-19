@@ -1,0 +1,34 @@
+#!/bin/bash -l
+#PBS -N atode_obs_job
+# Edit the node count here for your job size.
+#PBS -l select=25:system=polaris
+#PBS -l place=scatter
+#PBS -l walltime=06:00:00
+#PBS -l filesystems=home:eagle
+#PBS -q prod
+#PBS -A YOUR_ALLOCATION
+
+set -euo pipefail
+
+cd "${PBS_O_WORKDIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+
+module use /soft/modulefiles
+module load conda
+conda activate base
+
+# Pass WANDB_API_KEY through qsub or configure `wandb login` on Polaris.
+export WANDB_PROJECT="${WANDB_PROJECT:-at_ode_obs_sweep}"
+export WANDB_ENTITY="${WANDB_ENTITY:-}"
+export WANDB_MODE="${WANDB_MODE:-online}"
+if [[ "${WANDB_MODE}" == "online" && -z "${WANDB_API_KEY:-}" ]]; then
+  echo "WANDB_API_KEY is required when WANDB_MODE=online." >&2
+  exit 2
+fi
+
+chmod +x set_affinity_gpu_polaris.sh run_polaris_obs_job.sh
+
+NNODES=25
+
+NRANKS=2 RANKS_PER_NODE=4 \
+mpiexec -n 2 --ppn 4 \
+  ./set_affinity_gpu_polaris.sh ./run_polaris_obs_job.sh
