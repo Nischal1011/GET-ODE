@@ -2088,6 +2088,31 @@ only that configuration and the baseline; (4) a summary with fifths and forecast
 Pass: validation improvement >= 12%, test mean <= 5.10, better on >= 2/3 seeds, first fifth
 worse by <= 1%. On a pass, the same fixed (delta, w) is run on springs and IEEE39 extrapolation.
 
+
+### 40.1 NFJ result: rejected
+
+Best validation after 5-epoch fine-tunes (charged, full-horizon loss; control = sigma 0):
+- seed 1991: 0.05951 (control) / 0.05954 / 0.05973 / 0.05982 for sigma 0.01 / 0.03 / 0.05;
+- seed 1993: 0.05991 (control) / 0.05915 / 0.05985 / 0.05965.
+
+The best is -1.3% (seed 1993, sigma 0.01); seed 1991 is worse at every sigma. Training was stable
+(~400 refinements/epoch, the same as control). Fails the >= 5% rule on both seeds.
+
+### 41.1 Sigma-flow result: a consistent 5.7% gain, short of the bar
+
+The pre-registered grid (delta <= 0.3) selected its edge value (delta 0.3, w 0.25: validation
+-1.6%, test 6.233 -> 6.137), and validation was still improving at that edge. The grid was
+therefore extended on validation only: delta 0.5-2.0, w 0.15-0.5. Validation peaks at
+**delta = 1.0, w = 0.25** (5.773 vs 6.130, -5.8%; better on all 3 seeds) and falls off at larger
+delta and at other w. At delta = 1 the combination is 0.5 y(h) + 0.25 y(h_row) + 0.25
+y(h_row + 2 h_null): the forecast averaged over the null memory being removed or doubled.
+
+Test, scored once for that configuration (x1e-2): **6.233 -> 5.875** (6.378 / 6.383 / 5.939 ->
+5.876 / 6.069 / 5.681). Better on 3/3 seeds and in every fifth, including the first (1.39 ->
+1.32, last 12.25 -> 11.47). Fails the pass rule (test <= 5.10; validation >= 12%); LG-ODE is
+5.235. It is the only evaluation-only, zero-parameter change so far that improves charged
+consistently. It costs 3x forecasts at inference. Springs/IEEE39 were not run.
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)
