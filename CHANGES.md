@@ -2019,6 +2019,32 @@ baselines. **Full runs** (`run_logs/full38_drop.sh`): 5/6 config + `--dyn-dropou
 epochs from scratch, charged-extrap, 3 seeds. Started 10-18 16:55 (two runs launched by a
 rejected command were stopped first).
 
+
+## Part 39 — Forecast null-space compression (FNC): rejected by an evaluation-only sweep
+
+Proposal (external): at the last observation, contract only the decoder-null part of the state,
+h <- hP + alpha * h(I - P), with P the exact row-space projector (QR of W^T), so the boundary
+prediction is unchanged and interpolation is untouched. Hypothesis: the ~76 null dimensions carry
+incidental filtering memory that amplifies errors in chaotic charged rollouts, and LG-ODE's
+compact z0 wins by discarding it. `--fnc-alpha` in `eval_gilode.py`; alpha = 1 reproduces the
+baseline exactly (seed 1993: 0.059385).
+
+Charged-extrap, 5/6-baseline checkpoints, no training (x1e-2):
+
+| alpha | val mean | test (1991/1992/1993) | test mean | fifths 1st / mid / last |
+|---|---|---|---|---|
+| 1.00 | 6.130 | 6.378 / 6.383 / 5.939 | 6.233 | 1.39 / 5.76 / 12.26 |
+| 0.90 | 6.148 | 6.382 / 6.372 / 6.023 | 6.259 | 1.39 / 5.94 / 12.03 |
+| 0.75 | 6.357 | 6.518 / 6.573 / 6.345 | 6.478 | 1.40 / 6.36 / 12.10 |
+| 0.50 | 6.965 | 6.801 / 7.338 / 7.169 | 7.103 | 1.41 / 7.10 / 13.12 |
+| 0.25 | 7.539 | 6.939 / 8.301 / 7.796 | 7.679 | 1.43 / 7.43 / 14.67 |
+| 0.00 | 7.787 | 7.323 / 8.417 / 8.004 | 7.915 | 1.51 / 7.54 / 15.39 |
+
+Validation selects alpha = 1. The null memory is useful for forecasting, not noise: removing it
+worsens the middle and late horizon, the opposite of the hypothesis and consistent with A4
+(overwrite anchoring, +68%). Rejected under the pre-stated rule (no alpha gives >= 8%), so the
+springs/IEEE39 sweeps were not run.
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)
