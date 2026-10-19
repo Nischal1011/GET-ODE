@@ -77,7 +77,7 @@ class GILODEBaseline(VAE_Baseline):
                  n_particles=1, debias=False, reversal_weight=0.0, reversal_ext=0.0,
                  geo_msg=False, moe_k=1, ctx_init=False, moe_temp=1.0, moe_route=False,
                  moe_msg=1, int_width=None, route_weight=0.0, resplit=False,
-                 support_aware=False, jac_reg=0.0, obs_noise=0.0, distill_weight=0.0):
+                 support_aware=False, jac_reg=0.0, obs_noise=0.0, distill_weight=0.0, nfj_sigma=0.0):
         super(GILODEBaseline, self).__init__(
             input_dim=input_dim, latent_dim=hidden_dim, z0_prior=None, device=device, obsrv_std=obsrv_std)
         self.num_atoms = num_atoms
@@ -107,6 +107,7 @@ class GILODEBaseline(VAE_Baseline):
         self.resplit = resplit
         # Part 38 (F): GNS-style training noise on the anchored observations (targets stay clean).
         self.obs_noise = obs_noise
+        self.core.nfj_sigma = nfj_sigma
         # Part 38 (D): ensemble distillation. self.teachers (set by the runner) are frozen
         # checkpoints; their mean prediction is an extra regression target.
         self.distill_weight = distill_weight
@@ -234,6 +235,7 @@ class GILODEBaseline(VAE_Baseline):
             with torch.no_grad():
                 teacher_mean = torch.stack([t.core(dense, mask, grid_times, decoder_time_steps, S, c)[0]
                                             for t in self.teachers]).mean(0)
+        self.core.nfj_active = (self.core.nfj_sigma > 0 and self.training and self.mode == "extrap")
         self.core.ode_func.route_stats = []
         self.core.reversal_active = (self.reversal_weight > 0 and self.training and self.mode == "extrap")
         self.core.last_reversal = None

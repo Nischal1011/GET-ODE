@@ -2045,6 +2045,31 @@ worsens the middle and late horizon, the opposite of the hypothesis and consiste
 (overwrite anchoring, +68%). Rejected under the pre-stated rule (no alpha gives >= 8%), so the
 springs/IEEE39 sweeps were not run.
 
+
+### 38.1 Full dynamics-dropout runs: rejected
+
+5/6 config + `--dyn-dropout 0.1`, 50 epochs from scratch, charged-extrap test (x1e-2):
+5.990 / 6.958 / 6.222, mean 6.390, against the baseline's 6.350 / 6.358 / 5.939 (mean 6.216).
+Seed 1992 is clearly worse. The 4-5% gain from the 5-epoch fine-tunes did not hold up from
+scratch.
+
+## Part 40 — Null-space forecast jitter (NFJ), paired fine-tune screen
+
+Proposal (external), motivated by Part 39: the null memory is useful, but the forecast may be
+too sensitive to it. LG-ODE samples its z0, so its ODE trains on a neighbourhood of initial
+states. NFJ (`--nfj-sigma`, extrap training only) adds Gaussian noise to the forecast initial
+state at the last observation. The noise lives in the exact decoder null space (QR projector)
+and is scaled per node to sigma x the RMS of that node's null component. It is sampled once per
+trajectory before integration (never inside the vector field, cf. the dropout bug), and the
+model is deterministic in eval. Verified: decoded boundary state unchanged (max diff 2.4e-7);
+inactive model bit-identical.
+
+Screen (`run_logs/screen40.sh`): 5-epoch fine-tunes from the 5/6-baseline checkpoints,
+full-horizon loss, sigma in {0 (control), 0.01, 0.03, 0.05}, seeds 1991/1993, then a validation
+eval of each best checkpoint with per-step MSE. Pass rule: one fixed sigma improves validation
+by >= 5% on both seeds, improves the last two fifths, worsens the first fifth by <= 1%, and
+trains stably.
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)

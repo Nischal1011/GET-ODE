@@ -69,6 +69,7 @@ parser.add_argument('--dyn-dropout', type=float, default=0.0, help='dropout in t
 parser.add_argument('--obs-noise', type=float, default=0.0, help='training noise on anchored observations (Part 38 F)')
 parser.add_argument('--distill-from', type=str, default=None, help='comma-separated teacher checkpoints (Part 38 D)')
 parser.add_argument('--distill-weight', type=float, default=0.0)
+parser.add_argument('--nfj-sigma', type=float, default=0.0, help='null-space forecast jitter, relative to null RMS (Part 40)')
 parser.add_argument('--ablate', type=str, default='',
                     help='comma-separated ablations (lib/gil_ode.py): no_lift, overwrite, no_gate, complete, '
                          'no_residual, no_guard, no_antisym, no_null_prior')
@@ -200,7 +201,7 @@ if __name__ == '__main__':
                            int_width=args.int_width, route_weight=args.route_weight,
                            resplit=args.resplit, support_aware=args.support_aware,
                            jac_reg=args.jac_reg, obs_noise=args.obs_noise,
-                           distill_weight=args.distill_weight).to(device)
+                           distill_weight=args.distill_weight, nfj_sigma=args.nfj_sigma).to(device)
     model.core.ode_func.dyn_dropout = args.dyn_dropout
     if args.distill_from:
         for tp in args.distill_from.split(','):
