@@ -25,6 +25,8 @@ p.add_argument('--model', required=True, help='display name, e.g. LG-ODE')
 p.add_argument('--out', default=None)
 p.add_argument('--dataset-dir-override', default=None, help='evaluate on a different dataset directory (same normalization source: its train files)')
 p.add_argument('--split', default='test', choices=['test', 'val', 'train'])
+p.add_argument('--n-samples', type=int, default=1, help='z0 samples per trajectory (VAE baselines); also scores the MSE of their mean prediction')
+p.add_argument('--z0-mean', action='store_true', help='use the posterior mean z0 = mu instead of sampling (VAE baselines)')
 p.add_argument('--dump', default=None, help='save every batch\'s (pred, truth, mask) to this .npz')
 cli = p.parse_args()
 
@@ -54,7 +56,10 @@ sp = cli.split
 test_encoder, test_graph, test_decoder, test_batch = (ns[f'{sp}_encoder'], ns[f'{sp}_graph'],
                                                      ns[f'{sp}_decoder'], ns[f'{sp}_batch'])
 
-acc = {'se': None, 'cnt': None, 'seen': [], 'unseen': [], 'dump': []}
+acc = {'se': None, 'cnt': None, 'seen': [], 'unseen': [], 'dump': [], 'meanpred': []}
+if cli.z0_mean:
+    import lib.utils as _u
+    _u.sample_standard_gaussian = lambda mu, sigma: mu
 _orig = model.get_mse
 
 # Remember the current batch, so get_mse can tell which targets were also conditioning inputs
@@ -86,6 +91,7 @@ def get_mse_hook(truth, pred_y, mask=None):
         cnt = mask.sum(dim=(0, 2)).cpu().numpy()
         acc['se'] = se if acc['se'] is None else acc['se'] + se
         acc['cnt'] = cnt if acc['cnt'] is None else acc['cnt'] + cnt
+        acc['meanpred'].append(torch.nanmean(seq_mse(pred_y.mean(0), truth, mask)).item())
         if cli.dump:
             acc['dump'].append((pred_y[0].cpu().numpy(), truth.cpu().numpy(), mask.cpu().numpy()))
         en, tq = _cur['enc'], _cur['dec']['time_steps']
@@ -99,9 +105,10 @@ def get_mse_hook(truth, pred_y, mask=None):
 model.get_mse = get_mse_hook
 model.eval()
 res = utils.compute_loss_all_batches(model, test_encoder, test_graph, test_decoder, n_batches=test_batch,
-                                     device=device, n_traj_samples=1, kl_coef=0.)
+                                     device=device, n_traj_samples=cli.n_samples, kl_coef=0.)
 out = {'model': cli.model, 'ckpt': os.path.basename(cli.ckpt), 'data': ck_args.data, 'mode': ck_args.mode,
        'seed': ck_args.random_seed, 'split': sp, 'mse_full': res['mse'],
+       'n_samples': cli.n_samples, 'z0_mean': cli.z0_mean, 'mse_meanpred': float(np.mean(acc['meanpred'])),
        'mse_seen': float(np.nanmean(acc['seen'])), 'mse_unseen': float(np.nanmean(acc['unseen'])),
        'mse_step': (acc['se'] / np.maximum(acc['cnt'], 1)).tolist()}
 print('RESULT ' + json.dumps({k: v for k, v in out.items() if k != 'mse_step'}))

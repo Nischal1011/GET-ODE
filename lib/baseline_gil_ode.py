@@ -77,7 +77,8 @@ class GILODEBaseline(VAE_Baseline):
                  n_particles=1, debias=False, reversal_weight=0.0, reversal_ext=0.0,
                  geo_msg=False, moe_k=1, ctx_init=False, moe_temp=1.0, moe_route=False,
                  moe_msg=1, int_width=None, route_weight=0.0, resplit=False,
-                 support_aware=False, jac_reg=0.0, obs_noise=0.0, distill_weight=0.0, nfj_sigma=0.0):
+                 support_aware=False, jac_reg=0.0, obs_noise=0.0, distill_weight=0.0, nfj_sigma=0.0,
+                 launch_eps=0.0):
         super(GILODEBaseline, self).__init__(
             input_dim=input_dim, latent_dim=hidden_dim, z0_prior=None, device=device, obsrv_std=obsrv_std)
         self.num_atoms = num_atoms
@@ -108,6 +109,8 @@ class GILODEBaseline(VAE_Baseline):
         # Part 38 (F): GNS-style training noise on the anchored observations (targets stay clean).
         self.obs_noise = obs_noise
         self.core.nfj_sigma = nfj_sigma
+        self.core.launch_eps = launch_eps
+        self.core.launch_active = (mode == "extrap")
         # Part 38 (D): ensemble distillation. self.teachers (set by the runner) are frozen
         # checkpoints; their mean prediction is an extra regression target.
         self.distill_weight = distill_weight

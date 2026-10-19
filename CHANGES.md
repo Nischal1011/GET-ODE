@@ -2113,6 +2113,34 @@ Test, scored once for that configuration (x1e-2): **6.233 -> 5.875** (6.378 / 6.
 5.235. It is the only evaluation-only, zero-parameter change so far that improves charged
 consistently. It costs 3x forecasts at inference. Springs/IEEE39 were not run.
 
+
+## Part 42 — Forecast launch state: LG-ODE audit, Gauss-Newton oracle, AGLA adapter
+
+Proposal (external): LG-ODE wins charged-extrap because its encoder can choose a
+*forecast-optimal* z0, while GIL-ODE forecasts from its *filter-optimal* state at the last
+observation. FNC (Part 39) showed the null memory is useful, so the missing freedom is in the
+decoder-visible launch state. The 5/6 baseline is tagged `gilode-5of6-baseline` (37766e3); all
+later flags stay off by default.
+
+**A. LG-ODE posterior audit** (`run_logs/eval/lg_audit.sh`, test, diagnostic): one z0 sample vs
+z0 = mu vs the mean of 16 / 64 samples (`eval_baseline.py --z0-mean / --n-samples`).
+
+**B. Gauss-Newton oracle** (`gn_oracle.py`, validation, uses future targets, upper bound only):
+dy* = -(J^T J + lam s I)^-1 J^T r for a per-agent observation-space launch correction lifted by
+the anchor gain (null memory untouched). J comes from finite differences; lam is the best of a
+grid by linearised residual; each agent is clipped to an RMS budget; the result is re-scored by a
+true rollout. Sanity: F(0) reproduces the baseline to 4e-7. Seed 1993 validation (x1e-2),
+baseline ~5.99: budget 0.005 -> 5.76, 0.01 -> 5.56, 0.025 -> 5.04, **0.05 -> 4.44**, 0.1 ->
+3.80, unconstrained -> 3.69. LG-ODE's validation on this seed is ~4.87, so a small launch
+correction would let GIL-ODE's own dynamics win. Seeds 1991/1992 running.
+
+**C. AGLA** (`--launch-eps`, `--train-only core.launch`): dy = eps * tanh(A h + b), per agent,
+shared, 324 parameters, zero-initialised (verified exact no-op), applied once at the last
+observation as h += dy K^T, extrapolation only (interpolation bit-identical). The head is created
+at the end of `__init__` so it does not shift any existing random initialisation. Screen
+(`run_logs/screen42.sh`): head-only 5-epoch fine-tunes from the 5/6 checkpoints with every base
+parameter frozen, full-horizon loss, eps in {0.05, 0.1}, seeds 1991/1993.
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)

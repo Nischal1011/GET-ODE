@@ -70,6 +70,8 @@ parser.add_argument('--obs-noise', type=float, default=0.0, help='training noise
 parser.add_argument('--distill-from', type=str, default=None, help='comma-separated teacher checkpoints (Part 38 D)')
 parser.add_argument('--distill-weight', type=float, default=0.0)
 parser.add_argument('--nfj-sigma', type=float, default=0.0, help='null-space forecast jitter, relative to null RMS (Part 40)')
+parser.add_argument('--launch-eps', type=float, default=0.0, help='AGLA launch-correction bound (Part 42); 0 = off')
+parser.add_argument('--train-only', type=str, default=None, help='freeze every parameter whose name does not start with this prefix')
 parser.add_argument('--ablate', type=str, default='',
                     help='comma-separated ablations (lib/gil_ode.py): no_lift, overwrite, no_gate, complete, '
                          'no_residual, no_guard, no_antisym, no_null_prior')
@@ -201,7 +203,8 @@ if __name__ == '__main__':
                            int_width=args.int_width, route_weight=args.route_weight,
                            resplit=args.resplit, support_aware=args.support_aware,
                            jac_reg=args.jac_reg, obs_noise=args.obs_noise,
-                           distill_weight=args.distill_weight, nfj_sigma=args.nfj_sigma).to(device)
+                           distill_weight=args.distill_weight, nfj_sigma=args.nfj_sigma,
+                           launch_eps=args.launch_eps).to(device)
     model.core.ode_func.dyn_dropout = args.dyn_dropout
     if args.distill_from:
         for tp in args.distill_from.split(','):
@@ -219,6 +222,14 @@ if __name__ == '__main__':
         st = torch.load(args.init_from, map_location=device, weights_only=False)['state_dict']
         missing, unexpected = model.load_state_dict(st, strict=False)
         print('init-from', args.init_from, 'missing', missing, 'unexpected', unexpected)
+    if args.train_only:
+        n_tr = 0
+        for n_, p_ in model.named_parameters():
+            if not n_.startswith(args.train_only):
+                p_.requires_grad_(False)
+            else:
+                n_tr += p_.numel()
+        print('train-only', args.train_only, 'trainable params', n_tr)
 
     if args.load is not None:
         ckpt_path = os.path.join(args.save, args.load)

@@ -93,7 +93,7 @@ model = GILODEBaseline(input_dim=dataloader.feature, hidden_dim=args.hidden_dim,
                        geo_msg=getattr(args, 'geo_msg', False), moe_k=getattr(args, 'moe', 1),
                        ctx_init=getattr(args, 'ctx_init', False), moe_temp=getattr(args, 'moe_temp', 1.0),
                        moe_route=getattr(args, 'moe_route', False), moe_msg=getattr(args, 'moe_msg', 1),
-                       int_width=getattr(args, 'int_width', None),
+                       int_width=getattr(args, 'int_width', None), launch_eps=getattr(args, 'launch_eps', 0.0),
                        support_aware=getattr(args, 'support_aware', False)).to(device)
 model.load_state_dict(ck['state_dict'], strict=False)
 model.eval()

@@ -527,6 +527,14 @@ class GILODEModel(nn.Module):
         # Part 40: null-space forecast jitter (set active by the wrapper in extrap training only).
         self.nfj_sigma = 0.0
         self.nfj_active = False
+        # Part 42: amortised launch adapter (AGLA). At the last observation, before the autonomous
+        # forecast, a per-agent physical correction dy = eps * tanh(A h + b) is lifted through the
+        # anchor gain into the decoder ROW space (h += dy K^T), leaving the null-space memory
+        # untouched. Zero-initialised => exact no-op; active only when launch_active (extrapolation).
+        self.launch_eps = 0.0
+        self.launch_active = False
+        # (self.launch itself is created at the END of __init__ so that adding it does not shift the
+        #  random initialisation of any existing module.)
         # Evaluation only: decode the PRIOR state h^- at every grid time (before that time's
         # observation is applied), so a target that coincides with an observation is predicted
         # without seeing it. Interpolation targets ARE the conditioning observations (LG-ODE's
@@ -617,6 +625,9 @@ class GILODEModel(nn.Module):
         if 'overwrite' in self.ablate:
             self.encoder_proj = nn.Linear(input_dim, hidden_dim)
             utils.init_network_weights(self.encoder_proj)
+
+        self.launch = nn.Linear(hidden_dim, input_dim)                    # AGLA head (Part 42)
+        nn.init.zeros_(self.launch.weight); nn.init.zeros_(self.launch.bias)
 
     def _innovation(self, y, h, mask_f, K):
         '''Latent correction for observed agents (zero elsewhere): the anchored K e, or, under the
@@ -891,7 +902,8 @@ class GILODEModel(nn.Module):
         # filtering state into a forecasting state. See fa_U / fa_V in __init__. Only the index is
         # needed here; the adapter itself is applied inside the loop.
         last_obs_idx = -1
-        if self.use_forecast_adapter or self.ctx_init or self.fnc_alpha is not None or self.nfj_active:
+        if self.use_forecast_adapter or self.ctx_init or self.fnc_alpha is not None or self.nfj_active \
+                or (self.launch_active and self.launch_eps > 0):
             nz = obs_mask.any(dim=1).any(dim=0).nonzero()
             if nz.numel() > 0:
                 last_obs_idx = int(nz.max().item())
@@ -1009,6 +1021,10 @@ class GILODEModel(nn.Module):
                 Qr, _ = torch.linalg.qr(self.decoder.weight.transpose(0, 1), mode='reduced')
                 h_row = (h @ Qr) @ Qr.transpose(0, 1)
                 h = h_row + self.fnc_alpha * (h - h_row)
+
+            if self.launch_active and self.launch_eps > 0 and i == last_obs_idx:
+                dy = self.launch_eps * torch.tanh(self.launch(h))              # [B, N, D]
+                h = h + dy @ K.transpose(0, 1)
 
             if self.nfj_active and i == last_obs_idx:
                 # Null-space forecast jitter (Part 40): training-only Gaussian noise in the exact
