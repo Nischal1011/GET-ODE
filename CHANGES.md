@@ -2070,6 +2070,24 @@ eval of each best checkpoint with per-step MSE. Pass rule: one fixed sigma impro
 by >= 5% on both seeds, improves the last two fifths, worsens the first fifth by <= 1%, and
 trains stably.
 
+
+## Part 41 — Antithetic sigma-flow forecast mean (queued, evaluation only)
+
+Proposal (external): the MSE-optimal forecast is E[F_T(h0 + eps)], not F_T(h0), for a nonlinear
+forecast operator (unscented-transform reasoning). Using the exact null-space split from FNC,
+three deterministic forecasts start from h_0, h_row + (1 +/- delta) h_null (same decoded boundary
+state) and are combined as (1 - 2w) y_0 + w y_+ + w y_-. The symmetric pair cancels the
+first-order effect and keeps the second-order curvature correction; delta = 0 is the exact
+baseline. Unlike FNC it is not a one-sided state change. No training, no new parameters.
+
+`sigma_eval.py` shares forecasts per batch (baseline once, each delta's pair once) and scores
+every (delta, w). `run_logs/eval/sigma_queue.sh` waits for the Part 40 screen, then: (1) a
+validation sweep on the three 5/6-baseline charged checkpoints, delta in {0.05, 0.1, 0.2, 0.3}
+x w in {0.25, 0.5}; (2) selection of ONE global (delta, w) by mean validation MSE; (3) test of
+only that configuration and the baseline; (4) a summary with fifths and forecast spread by fifth.
+Pass: validation improvement >= 12%, test mean <= 5.10, better on >= 2/3 seeds, first fifth
+worse by <= 1%. On a pass, the same fixed (delta, w) is run on springs and IEEE39 extrapolation.
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)
