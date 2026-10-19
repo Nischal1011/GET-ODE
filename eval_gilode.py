@@ -48,6 +48,7 @@ p.add_argument('--dump', default=None)
 p.add_argument('--dump-batches', type=int, default=1)
 p.add_argument('--out', default=None, help='append the JSON result line to this file')
 p.add_argument('--tag', default='')
+p.add_argument('--fnc-alpha', type=float, default=None, help='forecast null-space compression (extrapolation only)')
 p.add_argument('--mc', type=int, default=0, help='MC-dropout passes to average (needs a model trained with --dyn-dropout)')
 p.add_argument('--context-window', type=float, default=0.0,
                help='use only observations within this time of the last observation (0 = all)')
@@ -100,6 +101,9 @@ core = model.core
 if cli.causal:
     core.use_smoother = False
 core.decode_prior = cli.decode_prior
+if cli.fnc_alpha is not None:
+    assert args.mode == 'extrap', 'FNC is defined only at the forecast boundary'
+    core.fnc_alpha = cli.fnc_alpha
 
 N = args.n_balls
 rng = torch.Generator(device='cpu').manual_seed(cli.drop_seed)
@@ -252,7 +256,7 @@ tot['overlap'] = float(np.mean(tot.get('overlap', [0])))
 split = {k: float(np.nanmean(tot[k])) for k in ('mse_seen', 'mse_unseen') if k in tot}
 res = {'tag': cli.tag, 'target_obs_overlap': tot['overlap'], 'ckpt': os.path.basename(cli.ckpt), 'data': args.data, 'mode': args.mode,
        'seed': args.random_seed, 'split': cli.split, 'causal': cli.causal, 'drop_agents': cli.drop_agents,
-       'knockout_lift': cli.knockout_lift, 'graph': cli.graph, 'context_window': cli.context_window, 'context_shift': cli.context_shift, 'decode_prior': cli.decode_prior,
+       'knockout_lift': cli.knockout_lift, 'graph': cli.graph, 'fnc_alpha': cli.fnc_alpha, 'context_window': cli.context_window, 'context_shift': cli.context_shift, 'decode_prior': cli.decode_prior,
        'mse_full': tot['mse_full'] / n_batches, 'mse_check': tot['mse_check'] / n_batches,
        'mse_prefix': tot['mse_prefix'] / n_batches,
        **split, 'particles': core.n_particles,

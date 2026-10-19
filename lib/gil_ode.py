@@ -522,6 +522,8 @@ class GILODEModel(nn.Module):
         #   no_residual / no_guard / no_antisym   drop that term from the vector field
         #   no_null_prior is handled in the training wrapper
         self.ablate = set(ablate)
+        # Part 39: forecast null-space compression factor; None = off (exact baseline).
+        self.fnc_alpha = None
         # Evaluation only: decode the PRIOR state h^- at every grid time (before that time's
         # observation is applied), so a target that coincides with an observation is predicted
         # without seeing it. Interpolation targets ARE the conditioning observations (LG-ODE's
@@ -886,7 +888,7 @@ class GILODEModel(nn.Module):
         # filtering state into a forecasting state. See fa_U / fa_V in __init__. Only the index is
         # needed here; the adapter itself is applied inside the loop.
         last_obs_idx = -1
-        if self.use_forecast_adapter or self.ctx_init:
+        if self.use_forecast_adapter or self.ctx_init or self.fnc_alpha is not None:
             nz = obs_mask.any(dim=1).any(dim=0).nonzero()
             if nz.numel() > 0:
                 last_obs_idx = int(nz.max().item())
@@ -997,6 +999,14 @@ class GILODEModel(nn.Module):
             # reorganize the hidden information the rollout will use. U is zero-initialized, so it
             # is a bit-exact no-op until trained -- checkpoints without these parameters (every
             # existing run, including the five winning cells) behave exactly as before.
+            if self.fnc_alpha is not None and i == last_obs_idx:
+                # Forecast null-space compression (Part 39): contract only the decoder-null part of
+                # the state once, at the last observation, before the autonomous forecast. Exact
+                # row-space projector from QR of W^T, so the decoded state is unchanged.
+                Qr, _ = torch.linalg.qr(self.decoder.weight.transpose(0, 1), mode='reduced')
+                h_row = (h @ Qr) @ Qr.transpose(0, 1)
+                h = h_row + self.fnc_alpha * (h - h_row)
+
             if self.ctx_init and i == last_obs_idx:
                 h = h + self._ctx_correction(h, outputs[:, :, :i], obs_mask[:, :, :i], grid_times[:i + 1], P_row)
 
