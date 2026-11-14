@@ -2141,6 +2141,31 @@ at the end of `__init__` so it does not shift any existing random initialisation
 (`run_logs/screen42.sh`): head-only 5-epoch fine-tunes from the 5/6 checkpoints with every base
 parameter frozen, full-horizon loss, eps in {0.05, 0.1}, seeds 1991/1993.
 
+
+### 42.1 Results: oracle headroom is real; AGLA cannot reach it; LG-ODE audit
+
+- **GN oracle, validation (x1e-2), seeds 1991/1992/1993:** baseline 6.241 / 6.310 / 5.840 (6.130);
+  budget 0.025 -> 5.338; **0.05 -> 4.808 / 5.286 / 4.289 (4.794)**; 0.1 -> 4.160; unconstrained
+  3.956 (pos/vel RMS 0.16/0.35). Upper bound only: it uses the future targets.
+- **AGLA** (324-param head, base frozen, 5 epochs): best validation 0.06231 / 0.05805 (eps 0.05)
+  and 0.06229 / 0.05800 (eps 0.1) for seeds 1991/1993, against 0.0624 / 0.0584 for the frozen
+  checkpoints. No gain: the oracle correction is fitted to the future and is not predictable from
+  the launch state by this head (trained on train-shaped windows). Rejected.
+- **LG-ODE audit, charged-extrap test:** one z0 sample (standard protocol) 5.582 / 5.175 / 5.025;
+  z0 = mu 5.395 / 5.043 / 4.911 (mean 5.116); mean of 64 samples 5.308 / 4.986 / 4.828 (5.041).
+  The paper should report the posterior-mean number alongside the standard one.
+
+## Part 43 — Sigma-flow stacked on the trained MoE-4 and reversion-head models (evaluation only)
+
+Validation selects delta = 1.5, w = 0.15 for both families; test scored once (x1e-2):
+- MoE-4 (Part 33.2): 5.501 -> **5.352** (5.103 / 5.797 / 5.156), -2.7%. Against LG-ODE's paired
+  seeds 5.522 / 5.176 / 5.006 it wins seed 1991 only; mean 5.352 vs 5.235. Still a loss.
+- Reversion head (Part 29): 5.897 -> 5.694 (5.784 / 5.783 / 5.516), -3.4%.
+
+The sigma-flow gain shrinks on stronger models (-5.7% on the baseline, -2.7% on MoE-4), so the
+gains do not add. Best GIL-ODE charged-extrap result to date: 5.352, 2.2% behind LG-ODE's
+one-sample number and 4.6% behind its posterior mean.
+
 ## Where to look (final corrected run)
 
 - **Archive**: `RESULTS_ARCHIVE_PHASE1-3.md` (all 30-epoch, capacity-mismatched results)
