@@ -64,6 +64,7 @@ parser.add_argument('--resplit', action='store_true', help='test-shaped training
 parser.add_argument('--support-aware', action='store_true', help='support-aware self dynamics (Part 36 C)')
 parser.add_argument('--jac-reg', type=float, default=0.0, help='Jacobian Frobenius regulariser weight (Part 36 B)')
 parser.add_argument('--ema', type=float, default=0.0, help='EMA decay of the weights; eval/selection use the EMA (Part 36 A)')
+parser.add_argument('--anneal', action='store_true', help='cosine-anneal the LR over the actual run length (T_max=niters, eta_min=1e-6); CHANGES.md Part 44')
 parser.add_argument('--init-from', type=str, default=None, help='continue training ALL parameters from this checkpoint (paired fine-tune screens)')
 parser.add_argument('--dyn-dropout', type=float, default=0.0, help='dropout in the vector field (Part 38 E)')
 parser.add_argument('--obs-noise', type=float, default=0.0, help='training noise on anchored observations (Part 38 F)')
@@ -340,6 +341,8 @@ if __name__ == '__main__':
     # overfitting rather than merely taking too-large steps late. Kept as-is so every reported
     # number stays comparable; revisit only alongside a fix for the overfitting itself.
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 1000, eta_min=1e-9)
+    if args.anneal:
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.niters, eta_min=1e-6)
 
     best_val_mse = np.inf
     best_ckpt_path = None

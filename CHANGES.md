@@ -2188,3 +2188,25 @@ one-sample number and 4.6% behind its posterior mean.
   `lib/baseline_gil_ode.py`, `run_logs/gilode_*.log` (v1), `run_logs/gilode_*_v2.log` (v2),
   `run_logs/gilode_*_tier1.log` (tier1, current)
 - **Checkpoints**: `experiments_gilode/` (gitignored)
+
+## Part 44: annealed continuation (charged-extrap), GIL-ODE MoE-4 and LG-ODE -- no change in ranking
+
+**Observation.** The inherited scheduler (`CosineAnnealingLR(T_max=1000)` on a 50-epoch run) keeps
+the LR constant at 5e-4. On charged-extrap the MoE-4 runs were still improving at the end (best
+epochs 43/40/46) with +-3% epoch-to-epoch validation noise; LG-ODE likewise (best epochs 43/50/50).
+
+**Test.** New opt-in `--anneal` (T_max=niters, eta_min=1e-6) in `run_models_gilode.py` and
+`run_models_corrected.py`, plus `--init-from` for LG-ODE. 15-epoch annealed continuation from each
+trained checkpoint, same seeds, identical extra budget for both models (`run_logs/anneal_cont.sh`).
+Per seed and model the lowest-validation checkpoint (original or continued) is kept.
+
+| charged-extrap test, x1e-2 | 1991 | 1992 | 1993 | mean |
+|---|---|---|---|---|
+| MoE-4 before | 5.232 | 5.943 | 5.330 | 5.501 |
+| MoE-4 after continuation | 5.155 | 5.943 (original kept) | 5.159 | 5.419 |
+| MoE-4 after + sigma-flow (val-selected delta=1.5, w=0.15) | 5.051 | 5.797 | 5.049 | 5.299 |
+| LG-ODE before | 5.522 | 5.176 | 5.006 | 5.235 |
+| LG-ODE after continuation | 5.494 | 5.094 | 4.843 | 5.144 |
+
+**Verdict.** Both models gain about the same (GIL -1.5%, LG-ODE -1.7%); the gap is unchanged
+(5.299 vs 5.144, 3.0%). GIL wins seeds 1991 only against the continued LG-ODE. Not adopted.

@@ -31,6 +31,8 @@ parser.add_argument('-b', '--batch-size', type=int, default=256)
 parser.add_argument('--save', type=str, default='experiments_corrected/')
 parser.add_argument('--save-graph', type=str, default='plot/')
 parser.add_argument('--load', type=str, default=None)
+parser.add_argument('--init-from', type=str, default=None, help='continue training all parameters from this checkpoint path (CHANGES.md Part 44)')
+parser.add_argument('--anneal', action='store_true', help='cosine-anneal the LR over the actual run length (T_max=niters, eta_min=1e-6)')
 parser.add_argument('-r', '--random-seed', type=int, default=1991)
 parser.add_argument('--data', type=str, default='spring', help="spring,charged,ieee39")
 parser.add_argument('--z0-encoder', type=str, default='GTrans')
@@ -139,6 +141,10 @@ if __name__ == '__main__':
         ckpt_path = os.path.join(args.save, args.load)
         utils.get_ckpt_model(ckpt_path, model, device)
 
+    if args.init_from is not None:
+        utils.get_ckpt_model(args.init_from, model, device)
+        print('init-from', args.init_from)
+
     log_path = "logs/" + args.alias + "_" + args.z0_encoder + "_" + args.data + "_" + str(args.sample_percent_train) + "_" + args.mode + "_" + str(experimentID) + ".log"
     if not os.path.exists("logs/"):
         utils.makedirs("logs/")
@@ -153,6 +159,8 @@ if __name__ == '__main__':
         optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.l2)
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 1000, eta_min=1e-9)
+    if args.anneal:
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.niters, eta_min=1e-6)
 
     best_val_mse = np.inf
     n_iters_to_viz = 1
