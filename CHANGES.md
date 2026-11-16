@@ -2244,3 +2244,40 @@ within seed variation (5.304 +- 0.43 vs 5.157 +- 0.36).
 
 **Fix:** `eval_baseline.py` now clears `init_from`, otherwise a continued checkpoint was
 overwritten by the weights it started from (the first LG-ODE-continued dump was wrong and redone).
+
+## Part 46: lead-time recalibration for every model (extrapolation cells); resplit paired test rejected
+
+Frozen before this part: tag `freeze-pre-calibration` (commit 1d1b789).
+
+**Recalibration for all models** (`run_logs/eval/mos_all.sh` dumps val/test forecasts of GIL-ODE
+and the six baselines, 3 extrapolation cells x 3 seeds; `mos_table.py`). Per step and feature, a
+linear map fitted on each model's own validation forecasts, applied to its test forecasts. The
+variant is chosen on validation only (2-fold CV pooled over all models and cells: affine 0.833,
+slope-only 0.862 of the uncalibrated error), so affine is used. Test, x1e-2, mean of 3 seeds
+(metric computed over the concatenated test set, so raw values differ slightly from per-batch means):
+
+| extrap, affine-calibrated (raw) | springs | charged | IEEE39 |
+|---|---|---|---|
+| GIL-ODE (5/6 baseline config) | **0.762** (0.873) | 5.321 (6.240) | **6.767** (6.898) |
+| GIL-ODE MoE-4 + continuation (charged only) | - | 4.859 (5.424) | - |
+| LG-ODE | 1.332 (1.719) | **4.840** (5.260) | 10.212 (13.488) |
+| LG-ODE + continuation (charged only) | - | 4.781 (5.157) | - |
+| CSG-ODE | 1.748 (3.622) | 5.891 (7.444) | 16.605 (17.613) |
+| Latent-ODE | 8.407 (9.719) | 5.469 (6.568) | 14.046 (14.866) |
+| ODE-RNN | 3.803 (5.143) | 6.279 (6.765) | 10.193 (10.690) |
+| Edge-GNN | 2.059 (2.640) | 5.156 (6.288) | 11.155 (14.820) |
+| RNN-NRI | 3.709 (6.429) | 11.368 (12.643) | 107.4 (109.4) |
+
+Springs and IEEE39 extrapolation wins survive calibration with large margins. On charged, the
+baseline GIL-ODE config loses to LG-ODE by 10% and also to Edge-GNN; the MoE-4 config is 0.4%
+behind the original LG-ODE (per seed 4.727 / 5.139 / 4.711 vs 4.960 / 4.827 / 4.733: GIL-ODE wins
+seeds 1991 and 1993) and 1.6% behind the continued LG-ODE. A tie, not a win.
+
+**Velocity.** GIL-ODE's raw charged gap is in velocity (2.72 vs 2.25); the centred difference of
+its own position forecast predicts velocity better than its decoded velocity (2.41 vs 2.72), which
+is not true for LG-ODE. After calibration the velocity errors are within 4%, so this is the same
+over-dispersion, not missing skill.
+
+**Resplit paired test (rejected).** `run_logs/resplit_cont.sh`: 15 annealed epochs from each MoE-4
+checkpoint with `--resplit`, against the identical runs without it (Part 44). Best validation
+0.0737 / 0.0676 / 0.0784 vs 0.0514 / 0.0597 / 0.0507; test 7.40 / 6.84 / 7.95. Much worse.
