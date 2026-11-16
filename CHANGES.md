@@ -2210,3 +2210,37 @@ Per seed and model the lowest-validation checkpoint (original or continued) is k
 
 **Verdict.** Both models gain about the same (GIL -1.5%, LG-ODE -1.7%); the gap is unchanged
 (5.299 vs 5.144, 3.0%). GIL wins seeds 1991 only against the continued LG-ODE. Not adopted.
+
+## Part 45: where LG-ODE's charged-extrap edge is, and lead-time recalibration (evaluation only)
+
+**Per-step comparison** (MoE-4 + continuation + sigma-flow vs LG-ODE, test, error ratio GIL/LG in
+6-step bins): 0.65, 0.89, 1.05, 1.12, 1.12, 1.10, 1.07, 1.03, 0.99, 0.95. GIL-ODE wins steps 1-12
+and 49-60; the whole gap is steps 13-42. Seeds 1991/1993 score 5.05; seed 1992 (5.80) is worse at
+every step. The stability-guard radius (1.75 for that run vs 2.02) is unrelated to test error
+across 36 charged runs.
+
+**Mechanism: calibration.** Regressing truth on prediction per step and feature (validation)
+gives slopes below 1 for both models, lower for GIL-ODE (steps 13-24 / 25-42 / 43-60: GIL MoE
+0.78 / 0.70 / 0.58, LG-ODE 0.89-0.91 / 0.79-0.81 / 0.63-0.65). Both forecasts are over-dispersed
+beyond the 29-step training horizon; LG-ODE less so (its velocity forecasts span +-0.6-0.7 vs
++-1.0). Clamping forecasts to the training support gains only 0.5% (GIL) / 0.2% (LG).
+
+**Lead-time recalibration** (`mos_eval.py`; `sigma_eval.py --dump`; `run_logs/eval/mos_dump.sh`):
+per step and feature, a shrink fitted on each model's own validation forecasts and applied to its
+test forecasts. Test, x1e-2 (seeds 1991 / 1992 / 1993):
+
+| | raw | slope only | slope + intercept |
+|---|---|---|---|
+| GIL MoE-4 + continuation | 5.424 | **4.875** (4.736 / 5.157 / 4.734) | 4.859 (4.727 / 5.139 / 4.711) |
+| GIL MoE-4 + continuation + sigma-flow | 5.304 | 4.948 | 4.930 |
+| LG-ODE original | 5.260 | 4.930 (5.112 / 4.919 / 4.760) | 4.840 (4.960 / 4.827 / 4.733) |
+| LG-ODE + continuation | 5.157 | 4.886 (5.113 / 4.868 / 4.675) | **4.781** (4.918 / 4.776 / 4.649) |
+
+**Verdict.** Recalibration removes the gap in skill: GIL-ODE gains 10%, LG-ODE 5-7%, and the two
+land within +-1.6% of each other, with the sign depending on whether an intercept is fitted. That
+is a tie, not a win; choosing the variant that favours GIL-ODE would be selecting on test.
+Sigma-flow is redundant once forecasts are recalibrated. With 3 seeds the raw difference is also
+within seed variation (5.304 +- 0.43 vs 5.157 +- 0.36).
+
+**Fix:** `eval_baseline.py` now clears `init_from`, otherwise a continued checkpoint was
+overwritten by the weights it started from (the first LG-ODE-continued dump was wrong and redone).

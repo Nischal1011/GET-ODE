@@ -40,6 +40,7 @@ ck_args.save = os.path.dirname(cli.ckpt) + '/'
 if cli.dataset_dir_override:
     ck_args.dataset = cli.dataset_dir_override; ck_args.dataset_dir = cli.dataset_dir_override
 ck_args.load = os.path.basename(cli.ckpt)
+ck_args.init_from = None      # a continued checkpoint must not be overwritten by the weights it started from
 
 ns = {'__name__': '__main__', '__file__': cli.script}
 sys.argv = [cli.script]

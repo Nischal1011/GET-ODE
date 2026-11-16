@@ -23,6 +23,7 @@ p.add_argument('--split', default='val', choices=['val', 'test'])
 p.add_argument('--deltas', type=float, nargs='+', default=[0.05, 0.10, 0.20, 0.30])
 p.add_argument('--weights', type=float, nargs='+', default=[0.25, 0.50])
 p.add_argument('--out', required=True)
+p.add_argument('--dump', default=None, help='save (baseline pred, blended pred of the LAST (delta, w), truth, mask, batch id) to this .npz')
 scli = p.parse_args()
 sys.argv = ['x', '--ckpt', scli.ckpt]
 src = open('eval_gilode.py').read().split("N = args.n_balls")[0]
@@ -45,6 +46,7 @@ combos = [(0.0, 0.0)] + [(d, w) for d in scli.deltas for w in scli.weights]
 acc = {c: [] for c in combos}
 steps = {c: [] for c in combos}
 spread = {d: [] for d in scli.deltas}
+D_ = []
 enc, dec, gr, nb = loaded[scli.split]
 with torch.no_grad():
     for bi in range(nb):
@@ -65,6 +67,8 @@ with torch.no_grad():
             y = y0 if d == 0.0 else (1 - 2 * w) * y0 + w * pairs[d][0] + w * pairs[d][1]
             acc[(d, w)].append(per_seq(y, truth, tm))
             steps[(d, w)].append(step_mse(y, truth, tm))
+        if scli.dump:
+            D_.append((y0.cpu().numpy(), y.cpu().numpy(), truth.cpu().numpy(), tm.cpu().numpy(), np.full(y.shape[0], bi)))
         for d in scli.deltas:
             yp, ym = pairs[d]
             ybar = 0.5 * (yp + ym)
@@ -77,4 +81,7 @@ with open(scli.out, 'a') as f:
                             'delta': d, 'weight': w, 'mse_full': float(np.mean(acc[(d, w)])),
                             'mse_step': np.mean(steps[(d, w)], 0).tolist(),
                             'spread_step': (np.mean(spread[d], 0).tolist() if d > 0 else None)}) + '\n')
+if scli.dump:
+    np.savez_compressed(scli.dump, pred0=np.concatenate([d[0] for d in D_]), pred=np.concatenate([d[1] for d in D_]), truth=np.concatenate([d[2] for d in D_]),
+                        tmask=np.concatenate([d[3] for d in D_]), batch=np.concatenate([d[4] for d in D_]))
 print('done', scli.split, args.random_seed)
