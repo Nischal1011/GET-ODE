@@ -2281,3 +2281,30 @@ over-dispersion, not missing skill.
 **Resplit paired test (rejected).** `run_logs/resplit_cont.sh`: 15 annealed epochs from each MoE-4
 checkpoint with `--resplit`, against the identical runs without it (Part 44). Best validation
 0.0737 / 0.0676 / 0.0784 vs 0.0514 / 0.0597 / 0.0507; test 7.40 / 6.84 / 7.95. Much worse.
+
+## Part 47: five seeds on charged-extrap (seeds 1994, 1995 added for MoE-4 GIL-ODE and LG-ODE)
+
+Pre-committed before launch (`run_logs/seeds45.sh` header): all five seeds are reported. Each new
+seed = standard 50-epoch run, then the Part 44 annealed continuation (lowest-validation
+checkpoint kept). Sigma-flow uses the (delta=1.5, w=0.15) selected on validation in Part 43.
+Test, x1e-2, seeds 1991-1995, metric over the concatenated test set (`mos5.py`; LG-ODE is a fresh
+one-sample evaluation, so its values differ from the training-log numbers by sampling noise):
+
+| | raw mean +- sd | per seed | affine-calibrated |
+|---|---|---|---|
+| GIL MoE-4 (50 ep) | 5.564 +- 0.29 | 5.235 5.949 5.335 5.707 5.594 | 4.965 |
+| GIL MoE-4 (50 ep) + sigma-flow | **5.427** +- 0.30 | 5.107 5.803 5.161 5.641 5.425 | 5.048 |
+| LG-ODE (50 ep) | 5.492 +- 0.47 | 5.583 5.175 5.024 5.445 6.233 | **4.903** |
+| GIL MoE-4 + continuation | 5.484 +- 0.33 | 5.159 5.949 5.165 5.593 5.553 | 4.913 |
+| GIL MoE-4 + continuation + sigma-flow | **5.353** +- 0.31 | 5.055 5.803 5.053 5.461 5.391 | 4.993 |
+| LG-ODE + continuation | 5.397 +- 0.47 | 5.548 5.086 4.836 5.438 6.078 | **4.873** |
+
+Training-log (per-batch) LG-ODE numbers: 5.522 / 5.176 / 5.006 / 5.453 / 6.233, mean 5.478;
+continued 5.494 / 5.094 / 4.843 / 5.461 / 6.040, mean 5.386.
+
+**Reading.** On the standard protocol (raw, LG-ODE one posterior sample) GIL-ODE MoE-4 +
+sigma-flow has the lower five-seed mean in both pairings (5.427 vs 5.478-5.492; 5.353 vs
+5.386-5.397), by 0.6-1.2%, winning seeds 1991 and 1995 and losing 1992-1994. The difference is far
+inside seed variation (sd 0.3-0.47) and is not significant. After recalibration of both models
+LG-ODE is ahead by 0.8-1.3%, and LG-ODE's posterior-mean forecast (about 2% below its one-sample
+number on the first three seeds) would also be ahead. The honest statement is a statistical tie.
