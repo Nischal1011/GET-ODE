@@ -116,6 +116,7 @@ class GILODEBaseline(VAE_Baseline):
         self.distill_weight = distill_weight
         self.teachers = []
         self.reversal_weight = reversal_weight
+        self.spread_cap = 0.0   # set by the runner (--spread-cap); CHANGES.md Part 49
         self.null_prior_weight = 0.0 if 'no_null_prior' in ablate else NULL_PRIOR_WEIGHT
 
     def _resplit(self, dense, mask, grid_times, batch_dict_decoder):
@@ -242,8 +243,31 @@ class GILODEBaseline(VAE_Baseline):
         self.core.ode_func.route_stats = []
         self.core.reversal_active = (self.reversal_weight > 0 and self.training and self.mode == "extrap")
         self.core.last_reversal = None
+        # Beyond-horizon spread cap (CHANGES.md Part 49). Extrapolation training supervises only the
+        # training forecast window (~half the test horizon), so nothing in the loss sees a rollout
+        # that stays accurate inside the window but gains energy after it -- the measured failure
+        # of springs-extrap seed 1993 (velocity spread 1.7x the truth's past the window, healthy
+        # runs 0.9x). Extend the queries by one more window of target-free steps and penalise, per
+        # step and feature, the forecast spread across agents and trajectories that exceeds the
+        # largest spread of the truth anywhere in the supervised window: (std_pred - std_cap)_+^2,
+        # a lower bound on the squared error against any continuation whose spread stays within
+        # what was observed. Scaled like the likelihood (1 / 2 sigma^2). Training only, extrap only.
+        n_ext = 0
+        if self.spread_cap > 0 and self.training and self.mode == "extrap" and decoder_time_steps.numel() > 1:
+            n_ext = decoder_time_steps.numel()
+            dt = (decoder_time_steps[1:] - decoder_time_steps[:-1]).median()
+            t_ext = decoder_time_steps[-1] + dt * torch.arange(1, n_ext + 1, device=decoder_time_steps.device,
+                                                               dtype=decoder_time_steps.dtype)
+            grid_times = torch.cat([grid_times, t_ext])
+            dense = torch.cat([dense, dense.new_zeros(dense.shape[0], dense.shape[1], n_ext, dense.shape[3])], 2)
+            mask = torch.cat([mask, mask.new_zeros(mask.shape[0], mask.shape[1], n_ext)], 2)
+            decoder_time_steps = torch.cat([decoder_time_steps, t_ext])
+        self.core._n_ext = n_ext
         pred, free_run, null_penalty = self.core(dense, mask, grid_times, decoder_time_steps, S, c,
                                                  free_run_from=free_run_from)  # [B, N, T_Q, D]
+        pred_ext = None
+        if n_ext:
+            pred, pred_ext = pred[:, :, :-n_ext], pred[:, :, -n_ext:]
 
         B, N, T_Q, D = pred.shape
         pred_flat = pred.reshape(B * N, T_Q, D).unsqueeze(0)  # [1, M, T_Q, D]
@@ -267,6 +291,18 @@ class GILODEBaseline(VAE_Baseline):
             mse_val = self.get_mse(truth, pred_flat, mask=target_mask)
 
         loss = -torch.mean(rec_likelihood)
+
+        self.last_spread = 0.0
+        if pred_ext is not None:
+            tm = target_mask.float()
+            cnt = tm.sum(0).clamp(min=1.0)                                     # [T_Q, D]
+            mu_t = (truth * tm).sum(0) / cnt
+            sd_t = (((truth - mu_t) ** 2 * tm).sum(0) / cnt).sqrt()            # truth spread per step/feature
+            cap = sd_t.amax(0).detach()                                        # [D] largest spread in the window
+            sd_p = pred_ext.reshape(B * N, n_ext, D).std(0, unbiased=False)    # [n_ext, D]
+            spread = (torch.relu(sd_p - cap) ** 2).mean()
+            self.last_spread = float(spread)
+            loss = loss + self.spread_cap * spread / (2 * self.obsrv_std.squeeze() ** 2)
 
         # The encoder/decoder consistency term that used to sit here is gone, subsumed by the
         # anchoring change. It existed because anchoring set an observed node's state to

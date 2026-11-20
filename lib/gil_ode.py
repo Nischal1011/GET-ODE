@@ -1063,7 +1063,11 @@ class GILODEModel(nn.Module):
         # growing without bound over a long uncorrected rollout. P = K W is the row-space
         # projector, so h - h P is exactly the part no observation can reach.
         P = K @ self.decoder.weight                      # [H, H], symmetric idempotent
-        h_null = outputs - outputs @ P
+        # Target-free spread-cap extension steps (CHANGES.md Part 49) are excluded, so the prior
+        # and the guard calibration see exactly the states they saw without the extension.
+        n_ext = getattr(self, '_n_ext', 0)
+        out_real = outputs[:, :, :outputs.shape[2] - n_ext] if n_ext else outputs
+        h_null = out_real - out_real @ P
         null_penalty = h_null.pow(2).sum(dim=-1).mean()
 
         # Calibrate the stability guard's radius from normal training states. Reuses h_null, which

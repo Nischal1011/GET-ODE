@@ -65,6 +65,8 @@ parser.add_argument('--support-aware', action='store_true', help='support-aware 
 parser.add_argument('--jac-reg', type=float, default=0.0, help='Jacobian Frobenius regulariser weight (Part 36 B)')
 parser.add_argument('--ema', type=float, default=0.0, help='EMA decay of the weights; eval/selection use the EMA (Part 36 A)')
 parser.add_argument('--anneal', action='store_true', help='cosine-anneal the LR over the actual run length (T_max=niters, eta_min=1e-6); CHANGES.md Part 44')
+parser.add_argument('--spread-cap', type=float, default=0.0, help='weight of the beyond-horizon spread penalty (extrapolation training only; CHANGES.md Part 49)')
+parser.add_argument('--save-every-epoch', action='store_true', help='also save a snapshot after every epoch (diagnosis only; CHANGES.md Part 48)')
 parser.add_argument('--init-from', type=str, default=None, help='continue training ALL parameters from this checkpoint (paired fine-tune screens)')
 parser.add_argument('--dyn-dropout', type=float, default=0.0, help='dropout in the vector field (Part 38 E)')
 parser.add_argument('--obs-noise', type=float, default=0.0, help='training noise on anchored observations (Part 38 F)')
@@ -207,6 +209,7 @@ if __name__ == '__main__':
                            distill_weight=args.distill_weight, nfj_sigma=args.nfj_sigma,
                            launch_eps=args.launch_eps).to(device)
     model.core.ode_func.dyn_dropout = args.dyn_dropout
+    model.spread_cap = args.spread_cap
     if args.distill_from:
         for tp in args.distill_from.split(','):
             t = GILODEBaseline(input_dim=input_dim, hidden_dim=args.hidden_dim, num_atoms=args.n_balls,
@@ -394,6 +397,8 @@ if __name__ == '__main__':
         _d = getattr(model.core, 'last_diag', {})
         diag_state['refines'] = diag_state.get('refines', 0) + _d.get('refines', 0)
         diag_state['reversal'] = diag_state.get('reversal', 0.0) + train_res.get('reversal', 0.0)
+        diag_state['spread'] = diag_state.get('spread', 0.0) + getattr(model, 'last_spread', 0.0)
+        diag_state['nsp'] = diag_state.get('nsp', 0) + 1
         diag_state['nb'] = diag_state.get('nb', 0) + 1
         optimizer.step()
         if args.ema > 0:
@@ -505,6 +510,9 @@ if __name__ == '__main__':
         if args.reversal_weight > 0:
             message_graph += ' reversal mse {:.6f}|'.format(diag_state.get('reversal', 0.0) / max(diag_state.get('nb', 1), 1))
             diag_state['reversal'] = 0.0; diag_state['nb'] = 0
+        if args.spread_cap > 0:
+            message_graph += ' spread excess {:.3e}|'.format(diag_state.get('spread', 0.0) / max(diag_state.get('nsp', 1), 1))
+            diag_state['spread'] = 0.0; diag_state['nsp'] = 0
         if args.jac_reg > 0:
             message_graph += ' jac {:.4f}|'.format(diag_state.get('jac', 0.0) / max(diag_state.get('nb', 1), 1))
             diag_state['jac'] = 0.0
@@ -525,6 +533,9 @@ if __name__ == '__main__':
 
         cur_lr = optimizer.param_groups[0]['lr']
         logger.info('Epoch {:04d} [LR] | lr {:.6e}|'.format(epo, cur_lr))
+        if args.save_every_epoch:   # diagnostic snapshots; never used for selection
+            torch.save({'args': args, 'state_dict': model.state_dict()}, os.path.join(
+                args.save, 'snap_' + args.alias + '_epoch_' + str(epo) + '.ckpt'))
 
         if val_res["mse"] < best_val_mse:
             best_val_mse = val_res["mse"]
