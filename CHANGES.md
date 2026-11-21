@@ -2308,3 +2308,36 @@ sigma-flow has the lower five-seed mean in both pairings (5.427 vs 5.478-5.492; 
 inside seed variation (sd 0.3-0.47) and is not significant. After recalibration of both models
 LG-ODE is ahead by 0.8-1.3%, and LG-ODE's posterior-mean forecast (about 2% below its one-sample
 number on the first three seeds) would also be ahead. The honest statement is a statistical tie.
+
+## Part 48: final configuration on all six cells, five seeds (run_logs/final5.sh)
+
+GIL-ODE final configuration: the 5/6 baseline flags plus `--horizon-loss full --reversion --moe 4`,
+seeds 1991-1995, logs `moe_s{seed}_{data}_{mode}.log`; baselines get seeds 1994/1995
+(`s5_{model}_{data}_{mode}_s{seed}.log`). Queue still running; full table to follow.
+
+Springs-extrap, test MSE x1e-2: 0.889 / 0.887 / **3.316** / 0.774 / 0.773 (seeds 1991-1995), mean
+1.328, against LG-ODE 2.021 / 1.592 / 1.550 / 1.406 / 1.609, mean 1.636. GIL is lower on 4 of 5
+seeds. Seed 1993 is a training failure: validation best at epoch 3 (0.034), then 0.06-0.077 for the
+rest of the run while training error fell normally. The failure reproduces bit for bit
+(`run_logs/repro_moe_s1993_spring_extrap.log`, per-epoch snapshots via the new `--save-every-epoch`).
+The configuration without the mixture (Part 29) trained normally on this seed (0.764).
+
+Diagnosis (`run_logs/eval/repro/analyze.py`, validation forecasts per fifth of the horizon): inside
+the training window the failed run matches the healthy ones. Beyond it, velocity error grows to
+33.7 (x1e-2) in the last fifth against 13.2 for a healthy seed at the same epoch, the forecast
+spread reaches 1.25x the truth's (velocity 1.7x; healthy 0.9-1.05x) and the correlation falls to
+0.44. Leaving the data range explains only 11% of the late error.
+
+## Part 49: beyond-horizon spread cap (rejected)
+
+`--spread-cap w` (lib/baseline_gil_ode.py): in extrapolation training the forecast is extended by
+one more window of target-free steps, and (std_pred - std_cap)_+^2 per step and feature is added
+with weight w / (2 sigma^2), where std_cap is the truth's largest spread in the supervised window.
+The extension steps are excluded from the null-space prior and the guard calibration
+(lib/gil_ode.py, `_n_ext`). Pre-registered go/no-go: springs-extrap seed 1993 must recover, charged
+must not get worse, a healthy springs seed must not get worse.
+
+Result on springs-extrap seed 1993 with w = 1: the spread excess falls from 3.1e-4 to 1.3e-6, yet
+validation still sticks at 0.051-0.055 and test is 3.374 (without the cap 3.316). The over-dispersion
+was a symptom, not the cause: with the spread held at the truth's, the forecast is still wrong beyond
+the window. No-go after the first run; the charged runs were stopped. Off by default; not adopted.
