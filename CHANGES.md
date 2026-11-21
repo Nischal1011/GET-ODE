@@ -2341,3 +2341,32 @@ Result on springs-extrap seed 1993 with w = 1: the spread excess falls from 3.1e
 validation still sticks at 0.051-0.055 and test is 3.374 (without the cap 3.316). The over-dispersion
 was a symptom, not the cause: with the spread held at the truth's, the forecast is still wrong beyond
 the window. No-go after the first run; the charged runs were stopped. Off by default; not adopted.
+
+## Part 50: why springs-extrap seed 1993 fails (mechanistic study, run_logs/eval/seed_study/)
+
+`study.py` evaluates 16 checkpoints on identical validation inputs (failed run: epochs 2/3/6/10/15
+snapshots; healthy seeds 1991/1992 at matching epochs, seeds 1994/1995 and the no-mixture seed-1993
+model at their best; the spread-cap run). Late-horizon (last 40%) validation MSE x1e-2.
+
+- Error vs number of springs: the failed model's error GROWS with coupling (1 spring 8.0 -> 8 springs
+  27.8 at epoch 10; Spearman 0.60); healthy models' error falls (5.0 -> 1.5-2.5; Spearman 0.06-0.21).
+  Spring-free trajectories (walls only) sit at ~10 for every model and checkpoint.
+- Interaction gate halved: failed 16.2 -> 8.2 (better); healthy 1.5-1.9 -> 5.4-5.6. Interaction off:
+  10.5 for all, i.e. the failed model's coupling is worse than none.
+- Channels: antisymmetric force channel off -> healthy 1.5-1.9 become 7.1-7.5, failed 16.2 -> 17.2;
+  free-form messages (phi_pos/phi_neg) off -> healthy 2.9-3.9, failed 16.2 -> 8.1. Healthy models
+  carry the coupling in the antisymmetric (Newton's third law) channel; the failed one in the
+  unconstrained messages. At epoch 3 (before the fork) neither channel matters much (6.6/8.7/6.7).
+- Linearised dynamics at forecast states: largest |Im eig(df/dh)| 6.4-7.0 in the failed run vs
+  3.4-4.0 healthy -- spurious fast modes, consistent with the extra solver bisections and the
+  beyond-window energy growth (Part 48).
+- Not the cause: the mixture as a router (gate entropy 1.39 = log 4, uniform throughout; uniform
+  mixture = learned gate; single experts are all bad in healthy models too), null-space drift
+  (healthy runs drift more at epoch 10), the guard, the reversion head, the residual expert (each
+  off changes < 3%). The mixture's only role is a different initialisation.
+- Timing: all runs are identical at epoch 2; the fork is at epochs 3-6 while the interaction gate
+  ramps from 0.27 to 0.8.
+
+Paper reading: the antisymmetric force prior is what makes springs extrapolation work, but it is
+available, not enforced; one of five initialisations routes the coupling around it. Enforcing the
+coupling through the antisymmetric channel is the natural follow-up (not run; would require reruns).
