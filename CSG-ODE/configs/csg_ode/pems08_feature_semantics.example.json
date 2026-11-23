@@ -1,0 +1,9 @@
+{
+  "features": [
+    "traffic_flow",
+    "speed",
+    "occupancy"
+  ],
+  "raw_sha256": "REPLACE_WITH_SHA256_OF_RAW_DATA_NPZ",
+  "source": "REPLACE_WITH_DATASET_SOURCE_AND_VERSION"
+}
