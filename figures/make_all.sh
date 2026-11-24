@@ -38,3 +38,7 @@ ls $E/conductance_*_s*.npy >/dev/null 2>&1 && $PY figures/fig_conductance.py $E/
 # Observation-rate sweep (when run_logs/eval/obsrate.csv exists)
 have $E/obsrate.csv && $PY figures/fig_obsrate.py $E/obsrate.csv --out $O/obsrate.pdf
 exit 0
+
+# Springs-extrap seed-1993 failure mechanism (CHANGES.md Part 50)
+have $E/seed_study/study.json $E/seed_study/channels.json && \
+  (cd figures && ../$PY fig_seed1993.py --study ../$E/seed_study/study.json --channels ../$E/seed_study/channels.json --out ../$O/seed1993.pdf)
