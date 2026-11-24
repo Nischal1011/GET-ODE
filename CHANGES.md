@@ -2409,3 +2409,18 @@ least predictable (charged); on well-learned dynamics its smoothing biases the m
 **Claim.** GIL-ODE is best on 5 of 6 cells, by 1.7x-8000x on the means and on every seed except
 springs-extrap 1993. Charged extrap is a statistical tie with LG-ODE (5.559 vs 5.478, sd 0.29/0.47;
 GIL ahead of every other baseline on every seed).
+
+## Part 52: ablations of the final configuration and observation-rate sweep (queued 2026-11-24)
+
+`run_logs/abl_obs.sh` (66 jobs, two workers, seeds 1991-1993, seed 1991 of everything first).
+- Ablations, one change each to the final MoE-4 configuration, on springs extrap and IEEE39
+  extrap: `--moe 1` (no mixture), `--ablate no_antisym`, `--ablate no_lift`, no `--reversion`,
+  no `--free-run`. Charged is left out (a charged-interp run is ~17 h). The intact configuration
+  is the matching seeds of the Part 51 runs.
+- Observation rate 0.4 and 0.8 (train and test; 0.6 is the main table) on springs interp and
+  extrap, for GIL-ODE (final config), LG-ODE and Latent-ODE, commands otherwise identical to the
+  main table.
+Estimated ~5 days in total; seed 1991 of all jobs after ~1.5-2 days.
+
+Also: `figures/fig_seed1993.py` (paper figure for Part 50: (a) training fork, (b) error by number
+of springs, (c) channel switch-off); RESULTS.md main section now carries the Part 51 table.
